@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VDOWN - Universal High-Speed Video & Audio Downloader</title>
+  <meta name="description" content="Download videos and audio in any quality from YouTube, TikTok, Instagram, Twitter/X, Facebook, SoundCloud and 1750+ sites with VDOWN. Full width, bento box design.">
+  
+  <!-- Clash Display from Fontshare -->
+  <link href="https://api.fontshare.com/v2/css?f[]=clash-display@300,400,500,600,700&display=swap" rel="stylesheet">
+  
+  <!-- Plus Jakarta Sans & Inter from Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="/static/css/style.css?v=white12">
+</head>
+<body class="dark-theme">
+  <!-- Luminous ethereal background glows matching Clash Display palette -->
+  <div class="bg-glow bg-glow-sky"></div>
+  <div class="bg-glow bg-glow-lilac"></div>
+  <div class="bg-glow bg-glow-deep"></div>
+
+  <!-- Header (Full Width Layout) -->
+  <header class="app-header">
+    <div class="header-container-full">
+      <div class="brand" id="brand-logo">
+        <div class="brand-icon">
+          <i class="fas fa-bolt-lightning"></i>
+        </div>
+        <div class="brand-text">
+          <h1 class="font-display">VDOWN</h1>
+          <span class="brand-badge">UNIVERSAL ENGINE</span>
+        </div>
+      </div>
+
+      <nav class="nav-links">
+        <a href="#downloader-section" class="nav-item active"><i class="fas fa-download"></i> <span>Downloader</span></a>
+        <a href="#platforms-directory-section" class="nav-item"><i class="fas fa-list-check"></i> <span>Supported Sites</span> <span class="nav-pill">1,750+</span></a>
+        <a href="#library-section" class="nav-item" id="nav-library-btn"><i class="fas fa-clock-rotate-left"></i> <span>History</span> <span class="nav-pill" id="header-history-count">0</span></a>
+        <button type="button" class="nav-btn-folder" id="header-open-folder-btn" title="Open Downloads Directory in Windows Explorer">
+          <i class="fas fa-folder-open"></i> <span>Open Folder</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Full-Width Bento Grid Content -->
+  <main class="main-content-full">
+    
+    <!-- Hero & Search Bento Section -->
+    <section class="bento-hero-section" id="downloader-section">
+      <div class="bento-hero-grid">
+        
+        <!-- Bento Cell 1: Primary Search & Inspection Hub (Spans 8 cols) -->
+        <div class="bento-card bento-search-card">
+          <div class="card-ambient-glow"></div>
+          
+          <div class="hero-header-content">
+            <div class="bento-tag">
+              <span class="tag-dot"></span>
+              <i class="fas fa-wand-magic-sparkles"></i> 1,750+ Platforms • Selectable Quality • Lossless Muxer
+            </div>
+            <h2 class="hero-title font-display">
+              Download Any Media in <span class="gradient-text">Your Preferred Quality</span>
+            </h2>
+            <p class="hero-subtitle">
+              Universal high-speed stream extractor with dynamic quality detection (4K UHD, 1080p Full HD, 720p, 480p) and studio MP3 extraction.
+            </p>
+          </div>
+
+          <!-- URL Input Bar -->
+          <div class="search-input-box">
+            <div class="input-platform-icon" id="platform-icon-wrapper">
+              <i class="fas fa-link" id="current-platform-icon"></i>
+            </div>
+            <input 
+              type="text" 
+              id="video-url-input" 
+              placeholder="Paste any link (YouTube, TikTok, SoundCloud, Instagram, Vimeo, adult tube sites, web pages)..." 
+              autocomplete="off" 
+              spellcheck="false"
+            >
+            <div class="input-actions-group">
+              <button type="button" class="action-btn-chip" id="paste-btn" title="Paste from clipboard">
+                <i class="fas fa-paste"></i> <span>Paste</span>
+              </button>
+              <button type="button" class="action-btn-chip" id="clear-btn" title="Clear input" style="display: none;">
+                <i class="fas fa-xmark"></i>
+              </button>
+            </div>
+            <button type="button" class="fetch-btn-primary" id="fetch-info-btn">
+              <span class="btn-text font-display"><i class="fas fa-magnifying-glass-chart"></i> Inspect Media</span>
+              <span class="btn-loader" style="display: none;"><i class="fas fa-spinner fa-spin"></i> Analyzing...</span>
+            </button>
+          </div>
+
+          <!-- Quick Test Demo Pills (Clean & Discrete) -->
+          <div class="demo-pills-row">
+            <span class="demo-label">Quick Test:</span>
+            <button type="button" class="demo-pill" data-url="https://www.youtube.com/watch?v=dQw4w9WgXcQ">
+              <i class="fab fa-youtube" style="color: #FF4040;"></i> YouTube 4K
+            </button>
+            <button type="button" class="demo-pill" data-url="https://soundcloud.com/alanwalker/faded">
+              <i class="fab fa-soundcloud" style="color: #FF7700;"></i> SoundCloud
+            </button>
+            <button type="button" class="demo-pill" data-url="https://vimeo.com/76979871">
+              <i class="fab fa-vimeo-v" style="color: #7BBBFF;"></i> Vimeo HD
+            </button>
+
+            <!-- Discrete Dropdown for more sample links -->
+            <div class="demo-dropdown-wrap" id="demo-dropdown-wrap">
+              <button type="button" class="demo-pill demo-dropdown-toggle" id="demo-dropdown-toggle">
+                <span>More Links</span> <i class="fas fa-chevron-down"></i>
+              </button>
+              <div class="demo-dropdown-menu" id="demo-dropdown-menu">
+                <button type="button" class="demo-menu-item" data-url="https://viralxxxporn.com/video/535804/kyneko-and-gattouz0-enjoy-intense-second-session-filming/">
+                  <i class="fas fa-fire" style="color: #B8A9FF;"></i> ViralXXX 1080p (KVS Multi-Quality)
+                </button>
+                <button type="button" class="demo-menu-item" data-url="https://pimpbunny.com/videos/cruise-ship-quickie-ends-in-a-deep-creampie/">
+                  <i class="fas fa-rabbit" style="color: #FF5C8A;"></i> PimpBunny (Flashvars Stream)
+                </button>
+                <button type="button" class="demo-menu-item" data-url="https://www.eporner.com/video-sI9bQ627zSv/vivienne-vo-gets-drilled-in-black-thigh-highs/">
+                  <i class="fas fa-circle-play" style="color: #7BBBFF;"></i> Eporner 1080p
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Error Alert Banner -->
+          <div class="error-banner" id="error-banner" style="display: none;">
+            <div class="error-icon"><i class="fas fa-triangle-exclamation"></i></div>
+            <div class="error-content">
+              <h4 id="error-title">Extraction Error</h4>
+              <p id="error-message">Could not fetch video info.</p>
+            </div>
+            <button type="button" class="error-close" id="error-close-btn"><i class="fas fa-xmark"></i></button>
+          </div>
+
+        </div>
+
+        <!-- Bento Cell 2: Live Engine Telemetry & Quick Action Hub (Spans 4 cols) -->
+        <div class="bento-card bento-telemetry-card">
+          <div class="card-ambient-glow"></div>
+          
+          <div class="telemetry-header">
+            <div class="telemetry-title-group">
+              <span class="telemetry-badge font-display"><i class="fas fa-microchip"></i> ENGINE TELEMETRY</span>
+              <h3 class="font-display">VDOWN Core v2.4</h3>
+            </div>
+            <div class="engine-live-indicator">
+              <span class="live-dot"></span> Online
+            </div>
+          </div>
+
+          <div class="telemetry-metrics-grid">
+            <div class="telemetry-metric-tile">
+              <div class="tile-icon"><i class="fas fa-gauge-high" style="color: var(--color-sky);"></i></div>
+              <div class="tile-info">
+                <span class="tile-label">Download Pipeline</span>
+                <strong class="tile-value">Multi-Thread CDN</strong>
+              </div>
+            </div>
+
+            <div class="telemetry-metric-tile">
+              <div class="tile-icon"><i class="fas fa-film" style="color: var(--color-lilac);"></i></div>
+              <div class="tile-info">
+                <span class="tile-label">Max Resolution</span>
+                <strong class="tile-value">8K UHD / 60fps</strong>
+              </div>
+            </div>
+
+            <div class="telemetry-metric-tile">
+              <div class="tile-icon"><i class="fas fa-music" style="color: var(--color-sky);"></i></div>
+              <div class="tile-info">
+                <span class="tile-label">Audio Quality</span>
+                <strong class="tile-value">320k MP3 / Lossless</strong>
+              </div>
+            </div>
+
+            <div class="telemetry-metric-tile">
+              <div class="tile-icon"><i class="fas fa-shield-halved" style="color: var(--color-lilac);"></i></div>
+              <div class="tile-info">
+                <span class="tile-label">Supported Sites</span>
+                <strong class="tile-value">1,750+ Engines</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="telemetry-actions">
+            <button type="button" class="btn-telemetry-action" id="telemetry-open-folder-btn">
+              <i class="fas fa-folder-open"></i>
+              <span>Open Downloads Directory</span>
+              <span class="badge-folder-count" id="telemetry-folder-count">0 files</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Inspected Video Bento Layout Section -->
+    <section class="bento-result-section" id="result-section" style="display: none;">
+      <div class="bento-result-grid">
+        
+        <!-- Bento Cell A: Cinematic Video Preview Card (Spans 4 cols on desktop) -->
+        <div class="bento-card bento-preview-card">
+          <div class="preview-thumb-box">
+            <img src="" alt="Video Thumbnail" id="media-thumbnail" class="preview-thumb-img">
+            <span class="preview-duration-badge" id="media-duration">00:00</span>
+            <div class="preview-platform-badge" id="media-platform-badge">
+              <i class="fab fa-youtube"></i> <span id="media-platform-name">Platform</span>
+            </div>
+            <button type="button" class="preview-play-trigger" id="preview-play-btn" title="Preview playback">
+              <i class="fas fa-play"></i>
+            </button>
+          </div>
+
+          <div class="preview-details">
+            <h3 class="preview-title font-display" id="media-title">Video Title</h3>
+            
+            <div class="preview-meta-chips">
+              <div class="meta-chip"><i class="fas fa-user-circle"></i> <span id="media-uploader">Creator</span></div>
+              <div class="meta-chip" id="meta-views-wrapper"><i class="fas fa-eye"></i> <span id="media-views">0 views</span></div>
+              <div class="meta-chip" id="meta-date-wrapper"><i class="fas fa-calendar-alt"></i> <span id="media-date">Date</span></div>
+            </div>
+
+            <a href="#" target="_blank" rel="noopener noreferrer" class="preview-original-link" id="media-original-link">
+              <i class="fas fa-arrow-up-right-from-square"></i> Open Source Webpage
+            </a>
+          </div>
+        </div>
+
+        <!-- Bento Cell B: Dynamic Quality Selector Hub (Spans 8 cols on desktop) -->
+        <div class="bento-card bento-qualities-card">
+          <div class="hub-header">
+            <div class="hub-tabs-pills">
+              <button type="button" class="hub-tab-btn active font-display" data-tab="video-tab" id="tab-btn-video">
+                <i class="fas fa-video"></i> Video Qualities
+              </button>
+              <button type="button" class="hub-tab-btn font-display" data-tab="audio-tab" id="tab-btn-audio">
+                <i class="fas fa-music"></i> Audio Only (MP3 / Lossless)
+              </button>
+              <button type="button" class="hub-tab-btn font-display" data-tab="raw-tab" id="tab-btn-raw">
+                <i class="fas fa-sliders"></i> Stream Inspector (Advanced)
+              </button>
+            </div>
+          </div>
+
+          <!-- Tab 1: Video Qualities Bento Grid -->
+          <div class="tab-pane active" id="video-tab">
+            <div class="bento-pane-hint">
+              <i class="fas fa-circle-info"></i> All video streams are automatically merged with pristine audio and encoded into universally compatible MP4 via FFmpeg.
+            </div>
+            <div class="bento-qualities-grid" id="video-qualities-grid">
+              <!-- Dynamically populated video quality cards -->
+            </div>
+          </div>
+
+          <!-- Tab 2: Audio Only Options -->
+          <div class="tab-pane" id="audio-tab" style="display: none;">
+            <div class="bento-pane-hint">
+              <i class="fas fa-circle-info"></i> Direct high-fidelity audio extraction with automatic ID3 tags, album art, and metadata.
+            </div>
+            <div class="bento-qualities-grid" id="audio-qualities-grid">
+              <!-- Dynamically populated audio cards -->
+            </div>
+          </div>
+
+          <!-- Tab 3: Raw Streams Table -->
+          <div class="tab-pane" id="raw-tab" style="display: none;">
+            <div class="bento-pane-hint">
+              <i class="fas fa-circle-info"></i> Technical raw stream inspector for specific codecs, frame rates, and container formats.
+            </div>
+            <div class="raw-table-wrapper">
+              <table class="raw-table" id="raw-formats-table">
+                <thead>
+                  <tr>
+                    <th>Format ID</th>
+                    <th>Type</th>
+                    <th>Resolution / Codec</th>
+                    <th>FPS</th>
+                    <th>File Size</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="raw-formats-tbody">
+                  <!-- Dynamically populated raw stream rows -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bento Cell C: Download Settings & Primary Action Bar (Spans full 12 cols) -->
+        <div class="bento-card bento-actions-card">
+          <div class="bento-actions-grid">
+            <div class="action-field">
+              <label for="pref-container"><i class="fas fa-box-archive"></i> Output Format:</label>
+              <select id="pref-container" class="bento-select">
+                <option value="mp4" selected>MP4 (Universal / Recommended)</option>
+                <option value="mkv">MKV (Matroska)</option>
+                <option value="webm">WebM</option>
+              </select>
+            </div>
+
+            <div class="action-field checkbox-field">
+              <label class="bento-checkbox-label">
+                <input type="checkbox" id="pref-subtitles">
+                <span class="bento-checkbox-custom"></span>
+                <span><i class="fas fa-closed-captioning"></i> Embed Subtitles</span>
+              </label>
+            </div>
+
+            <div class="action-field custom-name-field">
+              <label for="pref-custom-name"><i class="fas fa-pen"></i> Custom File Name (optional):</label>
+              <input type="text" id="pref-custom-name" placeholder="Leave empty for original video title" class="bento-input">
+            </div>
+
+            <div class="action-cta-wrap">
+              <div class="selected-quality-pill">
+                <span class="pill-label">Selected:</span>
+                <strong class="pill-badge font-display" id="selected-quality-badge">1080p Full HD</strong>
+                <span class="pill-size" id="selected-size-badge">~120 MB</span>
+              </div>
+
+              <button type="button" class="bento-download-btn font-display" id="start-download-btn">
+                <i class="fas fa-cloud-arrow-down"></i>
+                <span>Download Now</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Active Download Progress Bento Card -->
+    <section class="bento-progress-section" id="active-download-section" style="display: none;">
+      <div class="bento-card bento-progress-card">
+        <div class="progress-top-row">
+          <div class="progress-thumb-container">
+            <img src="" id="progress-thumbnail" alt="thumbnail" class="progress-thumb">
+          </div>
+          <div class="progress-info-group">
+            <div class="progress-status-badges">
+              <span class="badge-status-pill" id="progress-status-badge">Downloading</span>
+              <span class="badge-quality-pill font-display" id="progress-quality-badge">1080p</span>
+            </div>
+            <h4 class="progress-media-title font-display" id="progress-title">Video title...</h4>
+            <p class="progress-stage-desc" id="progress-stage">Initializing high-speed stream connection...</p>
+          </div>
+        </div>
+
+        <!-- High-Tech Animated Meter -->
+        <div class="bento-meter-wrapper">
+          <div class="bento-meter-track">
+            <div class="bento-meter-fill" id="progress-meter-fill" style="width: 0%;">
+              <div class="meter-glow-edge"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Metrics Grid -->
+        <div class="bento-metrics-row">
+          <div class="metric-item"><span class="m-label">Progress:</span> <strong class="m-val font-display" id="metric-percent">0%</strong></div>
+          <div class="metric-item"><span class="m-label">Speed:</span> <strong class="m-val" id="metric-speed">-- MB/s</strong></div>
+          <div class="metric-item"><span class="m-label">Downloaded:</span> <strong class="m-val" id="metric-bytes">0 MB / 0 MB</strong></div>
+          <div class="metric-item"><span class="m-label">Time Remaining:</span> <strong class="m-val" id="metric-eta">--:--</strong></div>
+        </div>
+
+        <!-- Post-Download Action Buttons -->
+        <div class="download-success-actions" id="download-success-actions" style="display: none;">
+          <a href="#" class="bento-action-btn btn-primary" id="action-browser-download" download>
+            <i class="fas fa-download"></i> Save to Computer
+          </a>
+          <button type="button" class="bento-action-btn" id="action-play-btn">
+            <i class="fas fa-circle-play"></i> Watch in App
+          </button>
+          <button type="button" class="bento-action-btn" id="action-open-file-btn">
+            <i class="fas fa-play"></i> Open File
+          </button>
+          <button type="button" class="bento-action-btn" id="action-show-folder-btn">
+            <i class="fas fa-folder-open"></i> Show in Folder
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Download History Library Bento Section -->
+    <section class="bento-library-section" id="library-section">
+      <div class="library-header-bar">
+        <div class="library-title-group">
+          <div class="header-icon-box"><i class="fas fa-folder-arrow-down"></i></div>
+          <div>
+            <h3 class="font-display">Download Library</h3>
+            <span class="library-count-pill" id="library-count-badge">0 items</span>
+          </div>
+        </div>
+        <div class="library-actions-group">
+          <button type="button" class="btn-lib-control" id="library-refresh-btn" title="Refresh library">
+            <i class="fas fa-rotate-right"></i> Refresh
+          </button>
+          <button type="button" class="btn-lib-control btn-lib-danger" id="library-clear-all-btn" title="Clear all history"><i class="fas fa-trash-can"></i> Clear History</button>
+          <button type="button" class="btn-lib-control btn-lib-folder" id="library-open-folder-btn">
+            <i class="fas fa-folder-open"></i> Open Downloads Folder
+          </button>
+        </div>
+      </div>
+
+      <!-- History Bento Grid -->
+      <div class="history-bento-grid" id="history-items-container">
+        <div class="history-empty" id="history-empty-state">
+          <i class="fas fa-cloud-arrow-down"></i>
+          <p>No downloads yet. Paste a link above to get started!</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Supported Platforms Directory Section (With Discreet Adult Dropdown) -->
+    <section class="bento-directory-section" id="platforms-directory-section">
+      <div class="directory-header-bar">
+        <div class="directory-title-wrap">
+          <div class="bento-tag">
+            <span class="tag-dot"></span>
+            <i class="fas fa-network-wired"></i> 1,750+ Extractors & Deep Media Sniffer
+          </div>
+          <h3 class="font-display">Supported Platforms & Sites Directory</h3>
+          <p>Instant support for mainstream video platforms, music portals, and any web page with HTML5 or direct MP4/M3U8 streams.</p>
+        </div>
+
+        <!-- Directory Category Filter Toolbar -->
+        <div class="directory-filter-toolbar">
+          <div class="directory-tabs-list">
+            <button type="button" class="dir-tab-btn active font-display" data-category="all" id="dir-tab-all">
+              <i class="fas fa-star" style="color: var(--color-sky);"></i> All Mainstream (1,000+)
+            </button>
+            <button type="button" class="dir-tab-btn font-display" data-category="video" id="dir-tab-video">
+              <i class="fas fa-video" style="color: var(--color-lilac);"></i> Video & Social (30+)
+            </button>
+            <button type="button" class="dir-tab-btn font-display" data-category="music" id="dir-tab-music">
+              <i class="fas fa-music" style="color: var(--color-sky);"></i> Music & Audio (25+)
+            </button>
+            <button type="button" class="dir-tab-btn font-display" data-category="generic" id="dir-tab-generic">
+              <i class="fas fa-globe" style="color: var(--color-lilac);"></i> Generic HTML5
+            </button>
+
+            <!-- Dedicated Discreet Dropdown for 18+ Adult Platforms -->
+            <div class="dir-dropdown-container" id="dir-dropdown-container">
+              <button type="button" class="dir-tab-btn dir-dropdown-trigger font-display" id="dir-dropdown-btn">
+                <span><i class="fas fa-ellipsis"></i> More Supported Sites</span>
+                <i class="fas fa-chevron-down dropdown-arrow-icon"></i>
+              </button>
+              <div class="dir-dropdown-menu" id="dir-dropdown-menu">
+                <button type="button" class="dir-dropdown-item" data-category="adult" id="dir-item-adult">
+                  <div class="dropdown-item-icon"><i class="fas fa-shield-halved" style="color: var(--color-lilac);"></i></div>
+                  <div class="dropdown-item-text">
+                    <strong>🔞 18+ Adult Tube Sites (40+)</strong>
+                    <small>xHamster, Eporner, TNAFlix, ViralXXX, PimpBunny & more</small>
+                  </div>
+                </button>
+                <button type="button" class="dir-dropdown-item" data-category="all_everything" id="dir-item-everything">
+                  <div class="dropdown-item-icon"><i class="fas fa-globe" style="color: var(--color-sky);"></i></div>
+                  <div class="dropdown-item-text">
+                    <strong>🌐 Show Everything</strong>
+                    <small>Display complete 1,750+ database (Mainstream + Adult)</small>
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="directory-search-box">
+            <i class="fas fa-magnifying-glass"></i>
+            <input type="text" id="dir-search-input" placeholder="Filter sites by name or domain (e.g. YouTube, SoundCloud, xHamster, TikTok)...">
+          </div>
+        </div>
+
+        <!-- Discreet Active Filter Indicator -->
+        <div class="dir-active-notice" id="dir-active-notice" style="display: none;">
+          <span id="dir-notice-text"><i class="fas fa-shield-halved"></i> Viewing: 18+ Adult Platforms (Discreet Mode Active)</span>
+          <button type="button" class="btn-notice-reset" id="dir-notice-reset-btn">
+            <i class="fas fa-arrow-left"></i> Return to Mainstream Sites
+          </button>
+        </div>
+      </div>
+
+      <!-- Directory Cards Bento Grid -->
+      <div class="directory-bento-grid" id="directory-cards-container">
+        <!-- Rendered dynamically by app.js from /api/supported-platforms -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Video Player Modal -->
+  <div class="modal-backdrop" id="player-modal" style="display: none;">
+    <div class="player-modal-content">
+      <div class="modal-header">
+        <h4 class="font-display" id="player-modal-title">Media Playback</h4>
+        <button type="button" class="modal-close-btn" id="player-modal-close"><i class="fas fa-xmark"></i></button>
+      </div>
+      <div class="player-body">
+        <video id="modal-video-element" controls autoplay playsinline class="modal-media-player"></video>
+        <audio id="modal-audio-element" controls autoplay class="modal-media-player" style="display: none;"></audio>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    <div class="footer-container-full">
+      <div class="footer-brand font-display">
+        <i class="fas fa-bolt-lightning" style="color: var(--color-sky);"></i> VDOWN Engine
+      </div>
+      <p class="footer-copy">Universal High-Speed Media Extractor • Powered by yt-dlp & FFmpeg • Bento Box Architecture</p>
+    </div>
+  </footer>
+
+  <!-- App Script -->
+  <script src="/static/js/app.js?v=white12"></script>
+
+  <!-- Delete Confirmation Modal -->
+  <div class="modal-backdrop" id="delete-confirm-modal" style="display: none;">
+    <div class="dialog-box">
+      <div class="dialog-header">
+        <div class="dialog-icon danger"><i class="fas fa-trash-can"></i></div>
+        <div>
+          <h4 class="dialog-title font-display">Delete Download</h4>
+          <p class="dialog-desc" id="delete-item-title-desc">Are you sure you want to delete this item?</p>
+        </div>
+      </div>
+      <div class="dialog-body">
+        <label class="bento-checkbox-label">
+          <input type="checkbox" id="delete-file-checkbox" checked>
+          <span>Also delete the downloaded file from your computer's hard drive</span>
+        </label>
+      </div>
+      <div class="dialog-footer">
+        <button type="button" class="btn-lib-control" id="delete-cancel-btn">Cancel</button>
+        <button type="button" class="btn-dialog-danger" id="delete-confirm-btn">
+          <i class="fas fa-trash-can"></i> <span>Delete</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Clear History Confirmation Modal -->
+  <div class="modal-backdrop" id="clear-confirm-modal" style="display: none;">
+    <div class="dialog-box">
+      <div class="dialog-header">
+        <div class="dialog-icon danger"><i class="fas fa-circle-exclamation"></i></div>
+        <div>
+          <h4 class="dialog-title font-display">Clear Download History</h4>
+          <p class="dialog-desc">Clear all recorded items from your download history.</p>
+        </div>
+      </div>
+      <div class="dialog-body">
+        <label class="bento-checkbox-label">
+          <input type="checkbox" id="clear-files-checkbox">
+          <span>Also permanently delete all downloaded files from your hard drive</span>
+        </label>
+      </div>
+      <div class="dialog-footer">
+        <button type="button" class="btn-lib-control" id="clear-cancel-btn">Cancel</button>
+        <button type="button" class="btn-dialog-danger" id="clear-confirm-btn">
+          <i class="fas fa-trash-can"></i> <span>Clear History</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
