@@ -147,8 +147,9 @@ class VideoDownloader:
         
         if is_youtube:
             opts['extractor_args'] = {
+                'youtubetab': {'skip': ['webpage']},
                 'youtube': {
-                    'player_client': ['android', 'ios', 'tv'],
+                    'player_client': ['android', 'ios'],
                     'player_skip': ['webpage', 'configs']
                 }
             }
@@ -1139,8 +1140,9 @@ class VideoDownloader:
 
         if is_youtube:
             ydl_opts['extractor_args'] = {
+                'youtubetab': {'skip': ['webpage']},
                 'youtube': {
-                    'player_client': ['android', 'ios', 'tv'],
+                    'player_client': ['android', 'ios'],
                     'player_skip': ['webpage', 'configs']
                 }
             }
@@ -1177,13 +1179,13 @@ class VideoDownloader:
             elif quality_id and quality_id.isdigit():
                 h = int(quality_id)
                 if h in [144, 240, 360, 480, 720, 1080, 1440, 2160, 4320]:
-                    ydl_opts['format'] = f"bestvideo[height<={h}]+bestaudio/best[height<={h}]/best"
+                    ydl_opts['format'] = f"bestvideo[height<={h}]+bestaudio/best[height<={h}]/18/best"
                 else:
-                    ydl_opts['format'] = f"{quality_id}+bestaudio/best/{quality_id}/best"
+                    ydl_opts['format'] = f"{quality_id}+bestaudio/best/{quality_id}/18/best"
             elif quality_id == 'best':
-                ydl_opts['format'] = "bestvideo+bestaudio/best"
+                ydl_opts['format'] = "bestvideo+bestaudio/best/18"
             else:
-                ydl_opts['format'] = f"{quality_id}+bestaudio/best/{quality_id}/best"
+                ydl_opts['format'] = f"{quality_id}+bestaudio/best/{quality_id}/18/best"
 
             ydl_opts['merge_output_format'] = target_ext
 
@@ -1212,8 +1214,10 @@ class VideoDownloader:
                 fallback_opts = dict(ydl_opts)
                 fallback_opts['format'] = '18/best[ext=mp4]/best'
                 fallback_opts['extractor_args'] = {
+                    'youtubetab': {'skip': ['webpage']},
                     'youtube': {
-                        'player_client': ['android', 'ios']
+                        'player_client': ['android', 'ios'],
+                        'player_skip': ['webpage', 'configs']
                     }
                 }
                 fallback_opts.pop('postprocessors', None)
