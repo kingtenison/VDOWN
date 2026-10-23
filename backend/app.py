@@ -1,13 +1,22 @@
 import os
+import re
+import json
+import base64
+import socket
+import ipaddress
 import asyncio
+import urllib.parse
+import urllib.request
 from typing import Optional, Dict, Any, List
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Query, BackgroundTasks
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, HTTPException, Query, BackgroundTasks
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from .downloader import VideoDownloader, DOWNLOADS_DIR, format_size
+from .downloader import VideoDownloader, DOWNLOADS_DIR, format_size, DEFAULT_USER_AGENT
+
+IS_CLOUD = bool(os.environ.get("VERCEL"))
 from .history import (
     load_history,
     add_to_history,
@@ -62,6 +71,124 @@ class DeleteHistoryRequest(BaseModel):
 
 class ClearHistoryRequest(BaseModel):
     delete_files: bool = False
+
+class ResolveRequest(BaseModel):
+    url: str
+    mode: str = "video"
+    quality_id: str = "720"
+    title: Optional[str] = None
+
+
+def _safe_filename(name: str, ext: str) -> str:
+    base = re.sub(r'[\\/*?:"<>|\r\n\t]', '_', (name or 'download').strip())[:150] or 'download'
+    return f"{base}.{ext or 'mp4'}"
+
+
+def _is_public_host(host: str) -> bool:
+    try:
+        for info in socket.getaddrinfo(host, None):
+            ip = ipaddress.ip_address(info[4][0])
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+                return False
+        return True
+    except Exception:
+        return False
+
+
+@app.get("/api/config")
+async def get_config():
+    # Cloud: stream files straight to the browser. Local: save to the downloads folder.
+    return {
+        "cloud": IS_CLOUD,
+        "downloads_folder": DOWNLOADS_DIR,
+        "version": "2.4.0"
+    }
+
+
+@app.post("/api/resolve")
+async def resolve_stream(req: ResolveRequest):
+    url = req.url.strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="Missing URL")
+    try:
+        loop = asyncio.get_running_loop()
+        info = await loop.run_in_executor(None, downloader.resolve_direct_stream, url, req.mode, req.quality_id)
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"success": False, "detail": str(e)})
+
+    filename = _safe_filename(req.title or info.get("title") or "download", info.get("ext"))
+    headers = {k: v for k, v in (info.get("headers") or {}).items()
+               if k.lower() in ("user-agent", "referer", "cookie", "origin", "accept")}
+    headers.setdefault("Referer", info.get("referer") or url)
+    params = {
+        "u": info["direct_url"],
+        "fn": filename,
+        "h": base64.urlsafe_b64encode(json.dumps(headers).encode()).decode(),
+    }
+    return {
+        "success": True,
+        "filename": filename,
+        "filesize": info.get("filesize") or 0,
+        "proxy_url": "/api/proxy?" + urllib.parse.urlencode(params),
+        "direct_url": info.get("direct_url")
+    }
+
+
+@app.get("/api/proxy")
+def proxy_stream(request: Request, u: str, fn: str = "download.mp4", h: str = ""):
+    parsed = urllib.parse.urlparse(u)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname or not _is_public_host(parsed.hostname):
+        raise HTTPException(status_code=400, detail="Invalid stream URL")
+
+    try:
+        fwd = json.loads(base64.urlsafe_b64decode(h.encode()).decode()) if h else {}
+    except Exception:
+        fwd = {}
+    fwd.setdefault("User-Agent", DEFAULT_USER_AGENT)
+    fwd.setdefault("Accept", "*/*")
+
+    # Forward client Range header if requested by browser or download manager
+    client_range = request.headers.get("Range")
+    if client_range:
+        fwd["Range"] = client_range
+
+    try:
+        req = urllib.request.Request(u, headers=fwd)
+        upstream = urllib.request.urlopen(req, timeout=30)
+    except urllib.error.HTTPError as e:
+        raise HTTPException(status_code=e.code, detail=f"Media server returned error: {e.reason}")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Media server refused the stream: {e}")
+
+    def iter_chunks():
+        try:
+            while True:
+                chunk = upstream.read(256 * 1024)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            upstream.close()
+
+    ascii_name = fn.encode("ascii", "ignore").decode() or "download.mp4"
+    out_headers = {
+        "Content-Disposition": f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{urllib.parse.quote(fn)}",
+        "Accept-Ranges": "bytes",
+        "Cache-Control": "no-store",
+    }
+    cl = upstream.headers.get("Content-Length")
+    if cl and cl.isdigit():
+        out_headers["Content-Length"] = cl
+    cr = upstream.headers.get("Content-Range")
+    if cr:
+        out_headers["Content-Range"] = cr
+
+    status_code = getattr(upstream, 'status', 200)
+    if cr and status_code == 200:
+        status_code = 206
+
+    media_type = upstream.headers.get("Content-Type") or "application/octet-stream"
+    return StreamingResponse(iter_chunks(), status_code=status_code, media_type=media_type, headers=out_headers)
 
 # API Routes
 @app.post("/api/extract")

@@ -19,7 +19,8 @@ document.addEventListener('DOMContentLoaded', () => {
     activeDownloadId: null,
     activeSocket: null,
     pollingInterval: null,
-    pendingDeleteItem: null
+    pendingDeleteItem: null,
+    isCloud: false
   };
 
   // DOM Elements - Search & Input
@@ -625,6 +626,74 @@ document.addEventListener('DOMContentLoaded', () => {
       const mode = qVal.includes('mp3') ? 'audio' : 'video';
       const container = batchContainerDropdown ? batchContainerDropdown.value : 'mp4';
 
+      if (state.isCloud) {
+        // Cloud Mode: Resolve and trigger direct browser downloads sequentially
+        try {
+          startBatchBtn.disabled = true;
+          startBatchBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>Streaming to Browser...</span>';
+          initActiveBatchUI(selectedEntries.length);
+          let successCount = 0;
+          let failCount = 0;
+
+          for (let i = 0; i < selectedEntries.length; i++) {
+            const item = selectedEntries[i];
+            if (batchQueueStep) batchQueueStep.textContent = `Item ${i+1} of ${selectedEntries.length}`;
+            if (batchItemTitle) batchItemTitle.textContent = item.title || `Video ${i+1}`;
+            if (batchStageText) batchStageText.textContent = `Resolving stream for ${item.title}...`;
+            const pct = Math.round((i / selectedEntries.length) * 100);
+            if (batchOverallPct) batchOverallPct.textContent = `${pct}%`;
+            if (batchOverallBar) batchOverallBar.style.width = `${pct}%`;
+
+            try {
+              const res = await fetch('/api/resolve', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  url: item.url,
+                  mode: mode,
+                  quality_id: qVal,
+                  title: item.title
+                })
+              });
+              const json = await res.json();
+              if (res.ok && json.success) {
+                const a = document.createElement('a');
+                a.href = json.proxy_url;
+                a.setAttribute('download', json.filename);
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                successCount++;
+              } else {
+                failCount++;
+              }
+            } catch (err) {
+              failCount++;
+            }
+            if (batchSuccessVal) batchSuccessVal.textContent = successCount.toString();
+            if (batchFailedVal) batchFailedVal.textContent = failCount.toString();
+            if (batchCompletedCount) batchCompletedCount.textContent = (successCount + failCount).toString();
+            await new Promise(r => setTimeout(r, 1200));
+          }
+
+          if (batchOverallPct) batchOverallPct.textContent = '100%';
+          if (batchOverallBar) batchOverallBar.style.width = '100%';
+          if (batchStageText) batchStageText.textContent = `Finished! ${successCount} downloads initiated.`;
+          if (batchStatusBadge) {
+            batchStatusBadge.textContent = 'Completed';
+            batchStatusBadge.className = 'badge-status-pill finished';
+          }
+          showToast(`Initiated ${successCount} browser downloads`, 'success');
+        } catch (e) {
+          showToast(e.message, 'error');
+        } finally {
+          startBatchBtn.disabled = false;
+          updateBatchSelectionUI();
+        }
+        return;
+      }
+
+      // Local Mode: Server queue with FFmpeg & background progress
       try {
         startBatchBtn.disabled = true;
         startBatchBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>Starting Queue...</span>';
@@ -967,6 +1036,65 @@ document.addEventListener('DOMContentLoaded', () => {
       uploader: state.currentMedia.uploader
     };
 
+    // Cloud Stream Mode (Vercel Serverless direct pipeline)
+    if (state.isCloud) {
+      try {
+        startDownloadBtn.disabled = true;
+        startDownloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Resolving Stream...';
+
+        const res = await fetch('/api/resolve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: payload.url,
+            mode: payload.mode,
+            quality_id: payload.quality_id,
+            title: payload.title
+          })
+        });
+
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          throw new Error(json.detail || 'Failed to resolve media stream.');
+        }
+
+        initActiveDownloadUI(payload);
+        progressStatusBadge.textContent = 'Transferred to Browser';
+        progressStatusBadge.className = 'badge-status finished';
+        progressMeterFill.style.width = '100%';
+        metricPercent.textContent = '100%';
+        progressStage.textContent = `Streaming '${json.filename}' directly to your browser download manager...`;
+        if (json.filesize) {
+          metricBytes.textContent = formatBytes(json.filesize);
+        }
+
+        downloadSuccessActions.style.display = 'flex';
+        actionBrowserDownload.href = json.proxy_url;
+        actionBrowserDownload.setAttribute('download', json.filename);
+        actionOpenFileBtn.style.display = 'none';
+        actionShowFolderBtn.style.display = 'none';
+
+        // Trigger native browser download directly
+        const a = document.createElement('a');
+        a.href = json.proxy_url;
+        a.setAttribute('download', json.filename);
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        showToast('Download started! Check your browser downloads.', 'success');
+      } catch (err) {
+        console.error(err);
+        showError('Download Notice', err.message);
+        showToast(err.message, 'error');
+      } finally {
+        startDownloadBtn.disabled = false;
+        startDownloadBtn.innerHTML = '<i class="fas fa-arrow-down-to-bracket"></i> <span>Download Now</span>';
+      }
+      return;
+    }
+
+    // Local Desktop Mode
     try {
       startDownloadBtn.disabled = true;
       startDownloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Initializing...';
@@ -1012,6 +1140,8 @@ document.addEventListener('DOMContentLoaded', () => {
     metricEta.textContent = '--:--';
 
     downloadSuccessActions.style.display = 'none';
+    actionOpenFileBtn.style.display = 'inline-flex';
+    actionShowFolderBtn.style.display = 'inline-flex';
     activeDownloadSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
@@ -1048,10 +1178,16 @@ document.addEventListener('DOMContentLoaded', () => {
       };
 
       socket.onerror = () => {
-        if (!socketConnected) startPolling(downloadId);
+        startPolling(downloadId);
       };
 
-      socket.onclose = () => {};
+      socket.onclose = () => {
+        // Fall back to polling if closed before finishing
+        const status = (progressStatusBadge.textContent || '').toLowerCase();
+        if (status !== 'completed' && status !== 'failed') {
+          startPolling(downloadId);
+        }
+      };
     } catch (e) {
       startPolling(downloadId);
     }
@@ -1616,7 +1752,29 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Initial Environment Check & Load
+  async function checkEnvironmentConfig() {
+    try {
+      const res = await fetch('/api/config');
+      if (res.ok) {
+        const cfg = await res.json();
+        state.isCloud = !!cfg.cloud;
+        state.downloadsFolder = cfg.downloads_folder;
+        if (state.isCloud) {
+          const folderBtn = document.getElementById('header-open-folder-btn');
+          if (folderBtn) {
+            folderBtn.innerHTML = '<i class="fas fa-cloud-arrow-down"></i> <span>Direct Stream</span>';
+            folderBtn.title = "Cloud Mode: Media is streamed directly into your browser's download manager";
+          }
+        }
+      }
+    } catch (e) {
+      state.isCloud = false;
+    }
+  }
+
   // Initial Load
+  checkEnvironmentConfig();
   loadHistory();
   loadSupportedPlatforms();
 });

@@ -699,8 +699,12 @@ class VideoDownloader:
         if len(urls) > 1:
             return self.create_multi_url_batch(urls)
 
-        # Check for creator / gallery / channel page patterns
-        is_gallery_page = bool(re.search(r'/(?:onlyfans-creators|channels|models|categories|users?|tags?|creators?)/', url, re.I))
+        # Check for creator / gallery / channel / search page patterns
+        parsed_url_pre = urllib.parse.urlparse(url)
+        is_gallery_page = bool(
+            re.search(r'/(?:search|onlyfans-creators|channels|models|categories|users?|tags?|creators?)/', url, re.I) or
+            ('search' in parsed_url_pre.path.lower() or 'search' in parsed_url_pre.query.lower())
+        )
         if is_gallery_page:
             try:
                 gallery = self.extract_gallery_fallback(url)
@@ -1234,7 +1238,7 @@ class VideoDownloader:
             }
 
             try:
-                await loop.run_in_executor(
+                fut = loop.run_in_executor(
                     None,
                     self._execute_yt_dlp,
                     sub_id,
@@ -1246,6 +1250,19 @@ class VideoDownloader:
                     None,
                     item.get('title')
                 )
+                # Mirror the active item's live progress into the batch status
+                sub_live = self.active_downloads[sub_id]
+                while not fut.done():
+                    cur = float(sub_live.get('progress') or 0)
+                    batch['current_progress'] = cur
+                    batch['speed_str'] = sub_live.get('speed_str') or batch['speed_str']
+                    batch['eta_str'] = sub_live.get('eta_str') or batch['eta_str']
+                    batch['overall_progress'] = round(((i + cur / 100.0) / total) * 100.0, 1)
+                    if sub_live.get('stage'):
+                        batch['stage'] = f"Item {i+1} of {total}: {sub_live['stage']}"
+                    await asyncio.sleep(0.4)
+                await fut
+                batch['current_progress'] = 100.0
 
                 sub_task = self.active_downloads[sub_id]
                 if sub_task.get('status') == 'finished':
@@ -1310,6 +1327,30 @@ class VideoDownloader:
         temp_file = os.path.join(DOWNLOADS_DIR, f"{safe_title}.mp4")
         final_file = os.path.join(DOWNLOADS_DIR, f"{safe_title}.{target_ext}")
 
+        # Check for HLS stream (.m3u8) which requires FFmpeg fragment assembling
+        if '.m3u8' in stream_url.lower():
+            task_info['status'] = 'downloading'
+            task_info['stage'] = 'Downloading and assembling HLS stream with FFmpeg...'
+            try:
+                ffmpeg_cmd = [
+                    'ffmpeg', '-y',
+                    '-headers', f"User-Agent: {DEFAULT_USER_AGENT}\r\nReferer: {referer}\r\n",
+                    '-i', stream_url,
+                    '-c', 'copy',
+                    '-bsf:a', 'aac_adtstoasc',
+                    final_file
+                ]
+                res = subprocess.run(ffmpeg_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                if res.returncode == 0 and os.path.exists(final_file) and os.path.getsize(final_file) > 1024:
+                    task_info['status'] = 'finished'
+                    task_info['progress'] = 100.0
+                    task_info['filepath'] = final_file
+                    task_info['filename'] = os.path.basename(final_file)
+                    task_info['stage'] = 'Download completed successfully!'
+                    return
+            except Exception:
+                pass
+
         req_headers = {
             'User-Agent': DEFAULT_USER_AGENT,
             'Referer': referer,
@@ -1321,7 +1362,7 @@ class VideoDownloader:
         downloaded = 0
         total_size = 0
 
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with urllib.request.urlopen(req, timeout=20) as resp:
             cl = resp.headers.get('Content-Length')
             if cl and cl.isdigit():
                 total_size = int(cl)
@@ -1449,13 +1490,21 @@ class VideoDownloader:
         parsed_url = urllib.parse.urlparse(url)
         referer = f"{parsed_url.scheme}://{parsed_url.netloc}/" if parsed_url.netloc else "https://www.google.com/"
 
-        # Check if quality_id is a direct stream URL or if KVS resolution is needed
-        is_direct_stream = quality_id.startswith('http://') or quality_id.startswith('https://')
+        # Check if quality_id or url is a direct stream URL or if KVS resolution is needed
+        is_direct_stream = (
+            quality_id.startswith('http://') or 
+            quality_id.startswith('https://') or
+            any(url.lower().endswith(ext) for ext in ['.mp4', '.webm', '.mkv', '.m4a', '.mp3', '.m3u8']) or
+            any(cdn in url.lower() for cdn in ['ahcdn.com', 'xhcdn.com', 'phncdn.com'])
+        )
         is_kvs_site = any(k in url.lower() for k in ['viralxxxporn', 'pimpbunny', 'tnaflix'])
 
-        if is_direct_stream:
+        if quality_id.startswith('http://') or quality_id.startswith('https://'):
             target_url = quality_id
             referer = url
+        elif any(url.lower().endswith(ext) for ext in ['.mp4', '.webm', '.mkv', '.m4a', '.mp3', '.m3u8']) or any(cdn in url.lower() for cdn in ['ahcdn.com', 'xhcdn.com', 'phncdn.com']):
+            target_url = url
+            referer = f"{parsed_url.scheme}://{parsed_url.netloc}/" if parsed_url.netloc else "https://www.google.com/"
         elif is_kvs_site:
             # Re-fetch fresh stream URL for the chosen resolution to avoid expired tokens
             try:
@@ -1539,13 +1588,19 @@ class VideoDownloader:
             elif quality_id and quality_id.isdigit():
                 h = int(quality_id)
                 if h in [144, 240, 360, 480, 720, 1080, 1440, 2160, 4320]:
-                    ydl_opts['format'] = f"bestvideo[height<={h}]+bestaudio/best[height<={h}]/18/best"
+                    ydl_opts['format'] = (
+                        f"bestvideo[height<={h}]+bestaudio/"
+                        f"best[height<={h}][acodec!=none]/"
+                        f"bestvideo[height<={h}]+bestaudio[ext=m4a]/"
+                        f"best[height<={h}]/"
+                        f"18/best"
+                    )
                 else:
-                    ydl_opts['format'] = f"{quality_id}+bestaudio/best/{quality_id}/18/best"
+                    ydl_opts['format'] = f"{quality_id}+bestaudio/best[acodec!=none]/{quality_id}/18/best"
             elif quality_id == 'best':
-                ydl_opts['format'] = "bestvideo+bestaudio/best/18"
+                ydl_opts['format'] = "bestvideo+bestaudio/best[acodec!=none]/bestvideo+bestaudio[ext=m4a]/best/18"
             else:
-                ydl_opts['format'] = f"{quality_id}+bestaudio/best/{quality_id}/18/best"
+                ydl_opts['format'] = f"{quality_id}+bestaudio/best[acodec!=none]/{quality_id}/18/best"
 
             ydl_opts['merge_output_format'] = target_ext
 
@@ -1586,7 +1641,14 @@ class VideoDownloader:
                 with yt_dlp.YoutubeDL(fallback_opts) as f_ydl:
                     info_dict = f_ydl.extract_info(target_url, download=True)
             else:
-                raise e
+                # If specific format combination failed, try high-res single progressive stream before failing
+                try:
+                    resil_opts = dict(ydl_opts)
+                    resil_opts['format'] = 'best[ext=mp4]/best'
+                    with yt_dlp.YoutubeDL(resil_opts) as r_ydl:
+                        info_dict = r_ydl.extract_info(target_url, download=True)
+                except Exception:
+                    raise e
 
         if info_dict:
             task_info['title'] = info_dict.get('title', task_info['title'])
@@ -1606,15 +1668,149 @@ class VideoDownloader:
                 basename = os.path.basename(base)
                 if os.path.exists(dirname):
                     for f in os.listdir(dirname):
-                        if f.startswith(basename):
+                        # DO NOT pick .part, .ytdl, or .temp files as the finished file
+                        if f.startswith(basename) and not f.endswith('.part') and not f.endswith('.ytdl') and not f.endswith('.temp'):
                             final_file = os.path.join(dirname, f)
                             break
+
+            if not os.path.exists(final_file):
+                dirname = os.path.dirname(final_file)
+                basename = os.path.basename(base)
+                if os.path.exists(dirname):
+                    part_files = [f for f in os.listdir(dirname) if f.startswith(basename) and (f.endswith('.part') or f.endswith('.ytdl'))]
+                    if part_files:
+                        raise RuntimeError("Download was interrupted before completion. Please retry.")
 
             task_info['filepath'] = final_file
             task_info['filename'] = os.path.basename(final_file)
             task_info['progress'] = 100.0
             task_info['status'] = 'finished'
             task_info['stage'] = "Ready! Download completed successfully."
+
+    def resolve_direct_stream(self, url: str, mode: str = 'video', quality_id: str = '720') -> Dict[str, Any]:
+        """
+        Resolve a single-file HTTP media URL (no download, no FFmpeg) so the server can
+        pipe it straight to the user's browser. Used on cloud deployments where files
+        written to /tmp can't be delivered and background work is throttled.
+        """
+        quality_id = str(quality_id or '')
+        parsed = urllib.parse.urlparse(url)
+        referer = f"{parsed.scheme}://{parsed.netloc}/" if parsed.netloc else url
+
+        # 1) Direct media stream URL pasted in quality_id or url
+        if quality_id.startswith('http://') or quality_id.startswith('https://'):
+            return {
+                'direct_url': quality_id,
+                'referer': url,
+                'title': None,
+                'ext': 'mp4' if mode == 'video' else 'mp3',
+                'filesize': 0,
+                'headers': {'Referer': url, 'User-Agent': DEFAULT_USER_AGENT}
+            }
+
+        if any(url.lower().endswith(ext) for ext in ['.mp4', '.webm', '.mkv', '.m4a', '.mp3']) or any(cdn in url.lower() for cdn in ['ahcdn.com', 'xhcdn.com', 'phncdn.com']):
+            return {
+                'direct_url': url,
+                'referer': referer,
+                'title': None,
+                'ext': 'mp4' if mode == 'video' else 'mp3',
+                'filesize': 0,
+                'headers': {'Referer': referer, 'User-Agent': DEFAULT_USER_AGENT}
+            }
+
+        target_height = None
+        m = re.search(r'(\d{3,4})', quality_id)
+        if m and not quality_id.startswith('http'):
+            target_height = int(m.group(1))
+
+        # 2) KVS tube sites: pick the closest resolution at or below the target
+        if any(k in url.lower() for k in ['viralxxxporn', 'pimpbunny', 'tnaflix']):
+            try:
+                streams = self.extract_kvs_qualities(url)
+            except Exception:
+                streams = []
+            if streams:
+                want = target_height or 720
+                below = [s for s in streams if s['height'] <= want]
+                pick = below[0] if below else streams[-1]
+                return {
+                    'direct_url': pick['direct_url'],
+                    'referer': url,
+                    'title': None,
+                    'ext': 'mp4',
+                    'filesize': pick.get('filesize') or 0,
+                    'headers': {'Referer': url, 'User-Agent': DEFAULT_USER_AGENT}
+                }
+
+        # 3) yt-dlp: extract info and resolve progressive format
+        opts = self.get_base_ydl_opts(url)
+        is_yt = any(k in url.lower() for k in ['youtube.com', 'youtu.be'])
+        if is_yt:
+            opts['extractor_args'] = {
+                'youtubetab': {'skip': ['webpage']},
+                'youtube': {
+                    'player_client': ['android', 'ios'],
+                    'player_skip': ['webpage', 'configs']
+                }
+            }
+
+        info = None
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+        except Exception as e:
+            msg = str(e)
+            if 'sign in to confirm' in msg.lower() or 'bot' in msg.lower():
+                msg = ("YouTube blocks cloud server datacenter IPs (Vercel). Run VDOWN locally with start.bat on your PC for unrestricted YouTube downloads.")
+            raise RuntimeError(msg.replace('ERROR: ', '', 1))
+
+        if info and info.get('entries'):
+            info = next((e for e in info['entries'] if e), None) or info
+
+        direct_url = (info or {}).get('url')
+        formats = (info or {}).get('formats', [])
+
+        if not direct_url and formats:
+            # Look for progressive formats (has direct URL and audio+video)
+            if mode == 'audio':
+                audios = [f for f in formats if f.get('url') and (f.get('vcodec') == 'none' or 'audio' in (f.get('format_note') or '').lower())]
+                if audios:
+                    direct_url = audios[-1]['url']
+            else:
+                prog = [f for f in formats if f.get('url') and f.get('vcodec') != 'none' and f.get('acodec') != 'none' and f.get('protocol', '').startswith('http')]
+                if target_height and prog:
+                    match = [f for f in prog if (f.get('height') or 0) <= target_height]
+                    if match:
+                        direct_url = match[-1]['url']
+                if not direct_url and prog:
+                    direct_url = prog[-1]['url']
+                
+                # If no progressive with separate audio codec metadata was found, pick best progressive video
+                if not direct_url:
+                    any_vid = [f for f in formats if f.get('url') and f.get('vcodec') != 'none' and f.get('protocol', '').startswith('http')]
+                    if target_height and any_vid:
+                        match = [f for f in any_vid if (f.get('height') or 0) <= target_height]
+                        if match:
+                            direct_url = match[-1]['url']
+                    if not direct_url and any_vid:
+                        direct_url = any_vid[-1]['url']
+
+        if not direct_url:
+            requested = (info or {}).get('requested_formats') or []
+            if requested and requested[0].get('url'):
+                direct_url = requested[0].get('url')
+
+        if not direct_url:
+            raise RuntimeError("This video format requires local FFmpeg stream merging. Please choose 720p/480p or run VDOWN locally using 'start.bat' on your PC.")
+
+        return {
+            'direct_url': direct_url,
+            'referer': url,
+            'title': info.get('title'),
+            'ext': info.get('ext') or ('m4a' if mode == 'audio' else 'mp4'),
+            'filesize': info.get('filesize') or info.get('filesize_approx') or 0,
+            'headers': info.get('http_headers') or {'Referer': url, 'User-Agent': DEFAULT_USER_AGENT},
+        }
 
     def get_progress(self, download_id: str) -> Optional[Dict[str, Any]]:
         return self.active_downloads.get(download_id)
