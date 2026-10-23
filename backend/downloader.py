@@ -1118,12 +1118,12 @@ class VideoDownloader:
             self._download_direct_stream(task_info, target_url, referer, title or '', mode, container, custom_filename)
             return
 
+        is_youtube = any(k in url.lower() for k in ['youtube.com', 'youtu.be'])
+
         ydl_opts: Dict[str, Any] = {
             'outtmpl': out_template,
             'progress_hooks': [progress_hook],
             'postprocessor_hooks': [postprocessor_hook],
-            'js_runtimes': {'node': {}},
-            'remote_components': ['ejs:github'],
             'windowsfilenames': True,
             'restrictfilenames': False,
             'noplaylist': True,
@@ -1136,6 +1136,14 @@ class VideoDownloader:
                 'Accept': '*/*'
             }
         }
+
+        if is_youtube:
+            ydl_opts['extractor_args'] = {
+                'youtube': {
+                    'player_client': ['android', 'ios', 'tv'],
+                    'player_skip': ['webpage', 'configs']
+                }
+            }
 
         target_ext = container if container in ['mp4', 'mkv', 'webm'] else 'mp4'
 
@@ -1193,32 +1201,56 @@ class VideoDownloader:
             if container:
                 ydl_opts['merge_output_format'] = container
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            task_info['stage'] = "Extracting stream and downloading..."
-            info_dict = ydl.extract_info(target_url, download=True)
-            if info_dict:
-                task_info['title'] = info_dict.get('title', task_info['title'])
-                final_file = ydl.prepare_filename(info_dict)
-                
-                base, _ = os.path.splitext(final_file)
-                if mode == 'audio':
-                    final_file = f"{base}.{target_ext}"
-                elif mode == 'video' and 'merge_output_format' in ydl_opts:
-                    final_file = f"{base}.{ydl_opts['merge_output_format']}"
+        info_dict = None
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                task_info['stage'] = "Extracting stream and downloading..."
+                info_dict = ydl.extract_info(target_url, download=True)
+        except Exception as e:
+            if is_youtube:
+                # Fallback to single-stream mobile format (format 18) to bypass bot wall and SABR errors
+                fallback_opts = dict(ydl_opts)
+                fallback_opts['format'] = '18/best[ext=mp4]/best'
+                fallback_opts['extractor_args'] = {
+                    'youtube': {
+                        'player_client': ['android', 'ios']
+                    }
+                }
+                fallback_opts.pop('postprocessors', None)
+                fallback_opts.pop('merge_output_format', None)
+                task_info['stage'] = "Downloading via high-compatibility stream..."
+                with yt_dlp.YoutubeDL(fallback_opts) as f_ydl:
+                    info_dict = f_ydl.extract_info(target_url, download=True)
+            else:
+                raise e
 
-                if not os.path.exists(final_file):
-                    dirname = os.path.dirname(final_file)
-                    basename = os.path.basename(base)
+        if info_dict:
+            task_info['title'] = info_dict.get('title', task_info['title'])
+            
+            # Resolve final filename
+            active_ydl = ydl if 'ydl' in locals() else f_ydl
+            final_file = active_ydl.prepare_filename(info_dict)
+            
+            base, _ = os.path.splitext(final_file)
+            if mode == 'audio':
+                final_file = f"{base}.{target_ext}"
+            elif mode == 'video' and 'merge_output_format' in ydl_opts:
+                final_file = f"{base}.{ydl_opts['merge_output_format']}"
+
+            if not os.path.exists(final_file):
+                dirname = os.path.dirname(final_file)
+                basename = os.path.basename(base)
+                if os.path.exists(dirname):
                     for f in os.listdir(dirname):
                         if f.startswith(basename):
                             final_file = os.path.join(dirname, f)
                             break
 
-                task_info['filepath'] = final_file
-                task_info['filename'] = os.path.basename(final_file)
-                task_info['progress'] = 100.0
-                task_info['status'] = 'finished'
-                task_info['stage'] = "Ready! Download completed successfully."
+            task_info['filepath'] = final_file
+            task_info['filename'] = os.path.basename(final_file)
+            task_info['progress'] = 100.0
+            task_info['status'] = 'finished'
+            task_info['stage'] = "Ready! Download completed successfully."
 
     def get_progress(self, download_id: str) -> Optional[Dict[str, Any]]:
         return self.active_downloads.get(download_id)
