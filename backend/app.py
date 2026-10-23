@@ -381,6 +381,13 @@ except Exception:
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
+@app.get("/favicon.ico", include_in_schema=False)
+async def serve_favicon():
+    favicon_path = os.path.join(STATIC_DIR, "favicon.ico")
+    if os.path.exists(favicon_path):
+        return FileResponse(favicon_path, media_type="image/x-icon")
+    return HTMLResponse(content="", status_code=204)
+
 @app.get("/", response_class=HTMLResponse)
 async def serve_index():
     index_path = os.path.join(STATIC_DIR, "index.html")

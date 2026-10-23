@@ -1,5 +1,6 @@
 import os
 import re
+import json
 import uuid
 import asyncio
 import urllib.request
@@ -126,12 +127,12 @@ class VideoDownloader:
         parsed = urllib.parse.urlparse(url or "")
         referer = f"{parsed.scheme}://{parsed.netloc}/" if parsed.netloc else "https://www.google.com/"
         
-        return {
+        is_youtube = bool(url and ("youtube.com" in url or "youtu.be" in url))
+        
+        opts = {
             'quiet': True,
             'no_warnings': True,
             'skip_download': True,
-            'js_runtimes': {'node': {}},
-            'remote_components': ['ejs:github'],
             'extract_flat': False,
             'age_limit': None,
             'geo_bypass': True,
@@ -143,6 +144,16 @@ class VideoDownloader:
                 'Accept-Language': 'en-US,en;q=0.9',
             }
         }
+        
+        if is_youtube:
+            opts['extractor_args'] = {
+                'youtube': {
+                    'player_client': ['android', 'ios', 'tv'],
+                    'player_skip': ['webpage', 'configs']
+                }
+            }
+            
+        return opts
 
     def extract_kvs_qualities(self, url: str, html_content: Optional[str] = None) -> List[Dict[str, Any]]:
         """
@@ -473,29 +484,104 @@ class VideoDownloader:
             'is_sniffed': True
         }
 
+    def extract_youtube_fallback(self, url: str) -> Optional[Dict[str, Any]]:
+        m = re.search(r'(?:v=|youtu\.be/|shorts/|embed/)([a-zA-Z0-9_-]{11})', url)
+        if not m:
+            return None
+        video_id = m.group(1)
+        
+        title = "YouTube Video"
+        uploader = "YouTube Creator"
+        thumb = f"https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg"
+        
+        try:
+            oembed_url = f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json"
+            req = urllib.request.Request(oembed_url, headers={'User-Agent': DEFAULT_USER_AGENT})
+            with urllib.request.urlopen(req, timeout=5) as r:
+                meta = json.loads(r.read().decode('utf-8'))
+                title = meta.get('title') or title
+                uploader = meta.get('author_name') or uploader
+        except Exception:
+            thumb = f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
+
+        return {
+            'url': f'https://www.youtube.com/watch?v={video_id}',
+            'title': title,
+            'thumbnail': thumb,
+            'duration': 0,
+            'duration_str': '--:--',
+            'uploader': uploader,
+            'views': None,
+            'upload_date': None,
+            'platform': {'name': 'YouTube', 'icon': 'fab fa-youtube', 'color': '#FF0000', 'category': 'video'},
+            'video_qualities': [
+                {'format_id': '1080', 'height': 1080, 'resolution': '1080p', 'fps': 60, 'ext': 'mp4', 'label': '1080p Full HD', 'filesize_str': '~85 MB'},
+                {'format_id': '720', 'height': 720, 'resolution': '720p', 'fps': 30, 'ext': 'mp4', 'label': '720p HD', 'filesize_str': '~45 MB'},
+                {'format_id': '480', 'height': 480, 'resolution': '480p', 'fps': 30, 'ext': 'mp4', 'label': '480p SD', 'filesize_str': '~25 MB'},
+                {'format_id': '360', 'height': 360, 'resolution': '360p', 'fps': 30, 'ext': 'mp4', 'label': '360p Medium', 'filesize_str': '~15 MB'}
+            ],
+            'audio_options': [
+                {'id': 'best_mp3_320', 'label': 'MP3 Audio (High Quality 320 kbps)', 'ext': 'mp3', 'bitrate': '320k', 'filesize_str': '~7.5 MB', 'description': 'Universal MP3 format with album art and metadata'},
+                {'id': 'best_m4a_aac', 'label': 'M4A / AAC (Original Quality)', 'ext': 'm4a', 'bitrate': '136k', 'filesize_str': '~3.5 MB', 'description': 'Clean native AAC audio without transcoding'},
+                {'id': 'lossless_wav', 'label': 'WAV (Uncompressed Studio Sound)', 'ext': 'wav', 'bitrate': 'Lossless', 'filesize_str': '~30 MB', 'description': 'Uncompressed studio master audio'},
+                {'id': 'lossless_flac', 'label': 'FLAC (Lossless Compressed)', 'ext': 'flac', 'bitrate': 'Lossless', 'filesize_str': '~18 MB', 'description': 'Audiophile bit-perfect compression'}
+            ],
+            'raw_formats': [],
+            'subtitles': [],
+            'webpage_url': f'https://www.youtube.com/watch?v={video_id}',
+            'is_sniffed': False,
+            'is_cloud_fallback': True
+        }
+
     def extract_info(self, url: str) -> Dict[str, Any]:
         url = url.strip()
         ydl_opts = self.get_base_ydl_opts(url)
         info = None
+        is_yt = ("youtube.com" in url or "youtu.be" in url)
         
         # 1. Try yt-dlp native extraction first
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
         except Exception as e:
-            # Try without node JS runtimes
-            try:
-                fallback_opts = dict(ydl_opts)
-                fallback_opts.pop('js_runtimes', None)
-                fallback_opts.pop('remote_components', None)
-                with yt_dlp.YoutubeDL(fallback_opts) as fallback_ydl:
-                    info = fallback_ydl.extract_info(url, download=False)
-            except Exception as e2:
-                # 2. If yt-dlp fails, trigger Deep Media Sniffer fallback!
+            # If YouTube bot protection is encountered, retry with android client explicitly
+            if is_yt:
                 try:
-                    return self.sniff_media_fallback(url)
-                except Exception as sniffer_err:
-                    raise ValueError(f"Could not extract video. {str(e2)} (Sniffer: {str(sniffer_err)})")
+                    mob_opts = dict(ydl_opts)
+                    mob_opts['extractor_args'] = {
+                        'youtube': {
+                            'player_client': ['android', 'ios']
+                        }
+                    }
+                    with yt_dlp.YoutubeDL(mob_opts) as mob_ydl:
+                        info = mob_ydl.extract_info(url, download=False)
+                except Exception:
+                    pass
+
+            if not info and is_yt:
+                # Trigger YouTube oEmbed fallback on datacenter IP blocks
+                fallback = self.extract_youtube_fallback(url)
+                if fallback:
+                    return fallback
+
+            # Try general fallback without optional runtimes
+            if not info:
+                try:
+                    fallback_opts = dict(ydl_opts)
+                    fallback_opts.pop('js_runtimes', None)
+                    fallback_opts.pop('remote_components', None)
+                    with yt_dlp.YoutubeDL(fallback_opts) as fallback_ydl:
+                        info = fallback_ydl.extract_info(url, download=False)
+                except Exception as e2:
+                    # 2. Trigger Deep Media Sniffer fallback
+                    try:
+                        return self.sniff_media_fallback(url)
+                    except Exception as sniffer_err:
+                        if is_yt:
+                            fallback = self.extract_youtube_fallback(url)
+                            if fallback:
+                                return fallback
+                        raise ValueError(f"Could not extract video. {str(e2)} (Sniffer: {str(sniffer_err)})")
 
         if not info:
             # Sniffer fallback
