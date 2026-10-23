@@ -122,6 +122,7 @@ def detect_platform(url: str, extractor_key: Optional[str] = None) -> Dict[str, 
 class VideoDownloader:
     def __init__(self):
         self.active_downloads: Dict[str, Dict[str, Any]] = {}
+        self.active_batches: Dict[str, Dict[str, Any]] = {}
 
     def get_base_ydl_opts(self, url: Optional[str] = None) -> dict:
         parsed = urllib.parse.urlparse(url or "")
@@ -482,7 +483,163 @@ class VideoDownloader:
             'raw_formats': [],
             'subtitles': [],
             'webpage_url': url,
-            'is_sniffed': True
+            'is_sniffed': True,
+            'is_playlist': False
+        }
+
+    def create_multi_url_batch(self, urls: List[str]) -> Dict[str, Any]:
+        entries = []
+        for idx, u in enumerate(urls):
+            plat = detect_platform(u)
+            parsed_u = urllib.parse.urlparse(u)
+            slug = [p for p in parsed_u.path.split('/') if p]
+            name = slug[-1].replace('-', ' ').replace('_', ' ').title() if slug else f"Item {idx + 1}"
+            entries.append({
+                'url': u,
+                'title': name,
+                'thumbnail': None,
+                'duration_str': '--:--',
+                'platform': plat
+            })
+        return {
+            'is_playlist': True,
+            'url': urls[0],
+            'title': f"Multi-URL Batch Queue ({len(urls)} Links)",
+            'thumbnail': None,
+            'uploader': 'Batch Downloader',
+            'playlist_count': len(entries),
+            'entries': entries,
+            'platform': {'name': 'Multi-URL Batch', 'icon': 'fas fa-layer-group', 'color': '#050F2A', 'category': 'batch'},
+            'video_qualities': [
+                {'format_id': '1080', 'height': 1080, 'label': '1080p Full HD', 'resolution': '1080p', 'filesize_str': 'Auto Quality'},
+                {'format_id': '720', 'height': 720, 'label': '720p HD', 'resolution': '720p', 'filesize_str': 'Fast Download'},
+                {'format_id': '480', 'height': 480, 'label': '480p SD', 'resolution': '480p', 'filesize_str': 'Data Saver'}
+            ],
+            'audio_options': [
+                {'id': 'best_mp3_320', 'label': 'MP3 Audio (High Quality 320 kbps)', 'ext': 'mp3', 'bitrate': '320k', 'filesize_str': 'High Quality'}
+            ]
+        }
+
+    def extract_gallery_fallback(self, url: str) -> Optional[Dict[str, Any]]:
+        """
+        Extracts multi-video galleries, creator pages, and playlist listings from tube and media sites
+        with automatic retries to handle temporary 502 Bad Gateway responses.
+        """
+        import time
+        parsed = urllib.parse.urlparse(url)
+        origin = f"{parsed.scheme}://{parsed.netloc}"
+        req_headers = {
+            'User-Agent': DEFAULT_USER_AGENT,
+            'Referer': origin + '/',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9'
+        }
+
+        content = None
+        for attempt in range(3):
+            try:
+                req = urllib.request.Request(url, headers=req_headers)
+                with urllib.request.urlopen(req, timeout=12) as resp:
+                    content = resp.read().decode('utf-8', errors='ignore')
+                    break
+            except Exception as e:
+                if attempt == 2:
+                    return None
+                time.sleep(1.0)
+
+        if not content:
+            return None
+
+        title_match = re.search(r'<meta[^>]+property=["\']og:title["\'][^>]+content=["\']([^"\']+)["\']', content, re.I)
+        if not title_match:
+            title_match = re.search(r'<title[^>]*>([^<]+)</title>', content, re.I)
+        gallery_title = html.unescape(title_match.group(1)).strip() if title_match else "Media Collection"
+        gallery_title = re.sub(r'\s*[-|–]\s*(?:PimpBunny|Viralxxxporn|Watch Free|Free Porn).*$', '', gallery_title, flags=re.I).strip()
+
+        entries = []
+        seen_urls = set()
+
+        card_pattern = re.compile(r'<a\s+[^>]*href=["\']([^"\']+)["\'][^>]*>([\s\S]*?)</a>', re.I)
+        for match in card_pattern.finditer(content):
+            href = match.group(1).strip()
+            inner = match.group(2)
+
+            if not re.search(r'/(?:videos?|watch|view)/[a-zA-Z0-9_\-\.\?]+', href, re.I):
+                continue
+
+            if any(bad in href.lower() for bad in ['/videos/?', '/videos/#', '/onlyfans-creators/', '/become-a-model', '/tags/', '/categories/', '/channels/']):
+                continue
+
+            full_url = urllib.parse.urljoin(url, href)
+            parsed_href = urllib.parse.urlparse(full_url)
+            path_parts = [p for p in parsed_href.path.split('/') if p]
+            if len(path_parts) < 2 and not parsed_href.query:
+                continue
+
+            if full_url in seen_urls:
+                continue
+
+            card_title = None
+            title_m = re.search(r'class=["\'][^"\']*(?:title|heading|name)[^"\']*["\'][^>]*>([^<]+)<', inner, re.I)
+            if not title_m:
+                title_m = re.search(r'alt=["\']([^"\']+)["\']', inner, re.I)
+            if not title_m:
+                title_m = re.search(r'title=["\']([^"\']+)["\']', inner, re.I)
+            if title_m:
+                card_title = html.unescape(title_m.group(1)).strip()
+            else:
+                slug = path_parts[-1]
+                card_title = slug.replace('-', ' ').replace('_', ' ').title()
+
+            if len(card_title) < 3 or card_title.lower() in ['videos', 'watch', 'play', 'hd']:
+                continue
+
+            thumb = None
+            img_m = re.search(r'(?:data-original|data-webp|data-src|poster|src)=["\']([^"\']+)["\']', inner, re.I)
+            if img_m:
+                src = img_m.group(1)
+                if not src.startswith('data:'):
+                    thumb = urllib.parse.urljoin(url, src)
+                else:
+                    orig_m = re.search(r'data-original=["\']([^"\']+)["\']', inner, re.I)
+                    if orig_m:
+                        thumb = urllib.parse.urljoin(url, orig_m.group(1))
+
+            duration = "--:--"
+            dur_m = re.search(r'class=["\'][^"\']*(?:duration|time)[^"\']*["\'][^>]*>([\d:]+)<', inner, re.I)
+            if dur_m:
+                duration = dur_m.group(1).strip()
+
+            seen_urls.add(full_url)
+            entries.append({
+                'url': full_url,
+                'title': card_title,
+                'thumbnail': thumb,
+                'duration_str': duration,
+                'duration': 0
+            })
+
+        if not entries:
+            return None
+
+        platform = detect_platform(url)
+        return {
+            'is_playlist': True,
+            'url': url,
+            'title': gallery_title,
+            'thumbnail': entries[0]['thumbnail'] if entries and entries[0]['thumbnail'] else None,
+            'uploader': platform.get('name') or 'Creator Collection',
+            'playlist_count': len(entries),
+            'entries': entries,
+            'platform': platform,
+            'video_qualities': [
+                {'format_id': '1080', 'height': 1080, 'label': '1080p Full HD', 'resolution': '1080p', 'filesize_str': 'Auto Quality'},
+                {'format_id': '720', 'height': 720, 'label': '720p HD', 'resolution': '720p', 'filesize_str': 'Fast Download'},
+                {'format_id': '480', 'height': 480, 'label': '480p SD', 'resolution': '480p', 'filesize_str': 'Data Saver'}
+            ],
+            'audio_options': [
+                {'id': 'best_mp3_320', 'label': 'MP3 Audio (High Quality 320 kbps)', 'ext': 'mp3', 'bitrate': '320k', 'filesize_str': 'High Quality'}
+            ]
         }
 
     def extract_youtube_fallback(self, url: str) -> Optional[Dict[str, Any]]:
@@ -536,7 +693,24 @@ class VideoDownloader:
 
     def extract_info(self, url: str) -> Dict[str, Any]:
         url = url.strip()
+        # 0. Check for multi-URL input (separated by newlines, commas, or spaces)
+        lines = [line.strip() for line in re.split(r'[\r\n,]+', url) if line.strip()]
+        urls = [u for u in lines if u.startswith('http://') or u.startswith('https://')]
+        if len(urls) > 1:
+            return self.create_multi_url_batch(urls)
+
+        # Check for creator / gallery / channel page patterns
+        is_gallery_page = bool(re.search(r'/(?:onlyfans-creators|channels|models|categories|users?|tags?|creators?)/', url, re.I))
+        if is_gallery_page:
+            try:
+                gallery = self.extract_gallery_fallback(url)
+                if gallery and gallery.get('playlist_count', 0) > 0:
+                    return gallery
+            except Exception:
+                pass
+
         ydl_opts = self.get_base_ydl_opts(url)
+        ydl_opts['extract_flat'] = 'in_playlist'
         info = None
         is_yt = ("youtube.com" in url or "youtu.be" in url)
         
@@ -565,6 +739,14 @@ class VideoDownloader:
                 if fallback:
                     return fallback
 
+            # Try gallery fallback on unsupported / flashvars errors
+            try:
+                gallery = self.extract_gallery_fallback(url)
+                if gallery and gallery.get('playlist_count', 0) > 0:
+                    return gallery
+            except Exception:
+                pass
+
             # Try general fallback without optional runtimes
             if not info:
                 try:
@@ -585,10 +767,58 @@ class VideoDownloader:
                         raise ValueError(f"Could not extract video. {str(e2)} (Sniffer: {str(sniffer_err)})")
 
         if not info:
+            gallery = self.extract_gallery_fallback(url)
+            if gallery and gallery.get('playlist_count', 0) > 0:
+                return gallery
             # Sniffer fallback
             return self.sniff_media_fallback(url)
 
-        # Handle playlists
+        # Handle playlists (e.g. YouTube playlist, SoundCloud set, etc.)
+        if ('entries' in info and len(list(info['entries'])) > 1) or info.get('_type') == 'playlist':
+            raw_entries = list(info.get('entries', []))
+            formatted_entries = []
+            for e in raw_entries:
+                if not e: continue
+                e_title = e.get('title') or 'Media Item'
+                e_url = e.get('webpage_url') or e.get('url')
+                if not e_url and e.get('id'):
+                    if is_yt:
+                        e_url = f"https://www.youtube.com/watch?v={e['id']}"
+                    else:
+                        e_url = f"{url}#{e['id']}"
+                if not e_url:
+                    continue
+                e_thumb = e.get('thumbnail') or (e.get('thumbnails')[-1].get('url') if e.get('thumbnails') else None)
+                e_dur = format_duration(e.get('duration')) if e.get('duration') else '--:--'
+                formatted_entries.append({
+                    'url': e_url,
+                    'title': e_title,
+                    'thumbnail': e_thumb,
+                    'duration_str': e_dur,
+                    'duration': e.get('duration') or 0
+                })
+            
+            p_thumb = info.get('thumbnail') or (formatted_entries[0]['thumbnail'] if formatted_entries else None)
+            return {
+                'is_playlist': True,
+                'url': url,
+                'title': info.get('title') or 'Playlist Collection',
+                'thumbnail': p_thumb,
+                'uploader': info.get('uploader') or info.get('channel') or 'Collection',
+                'playlist_count': len(formatted_entries),
+                'entries': formatted_entries,
+                'platform': detect_platform(url, info.get('extractor_key')),
+                'video_qualities': [
+                    {'format_id': '1080', 'height': 1080, 'label': '1080p Full HD', 'resolution': '1080p', 'filesize_str': 'Auto Quality'},
+                    {'format_id': '720', 'height': 720, 'label': '720p HD', 'resolution': '720p', 'filesize_str': 'Fast Download'},
+                    {'format_id': '480', 'height': 480, 'label': '480p SD', 'resolution': '480p', 'filesize_str': 'Data Saver'}
+                ],
+                'audio_options': [
+                    {'id': 'best_mp3_320', 'label': 'MP3 Audio (High Quality 320 kbps)', 'ext': 'mp3', 'bitrate': '320k', 'filesize_str': 'High Quality'}
+                ]
+            }
+
+        # Handle single-entry playlists
         if 'entries' in info and info['entries']:
             info = list(info['entries'])[0]
 
@@ -854,6 +1084,7 @@ class VideoDownloader:
                 subtitles.append({'lang': lang, 'name': f"{lang.upper()} (Auto)"})
 
         return {
+            'is_playlist': False,
             'url': url,
             'title': title,
             'thumbnail': thumbnail,
@@ -928,6 +1159,132 @@ class VideoDownloader:
             task_info['status'] = 'error'
             task_info['error'] = err_msg
             task_info['stage'] = f"Failed: {err_msg}"
+
+    def start_batch_download(
+        self,
+        items: List[Dict[str, Any]],
+        mode: str = 'video',
+        quality_id: str = '1080',
+        container: str = 'mp4'
+    ) -> str:
+        batch_id = str(uuid.uuid4())
+        self.active_batches[batch_id] = {
+            'id': batch_id,
+            'status': 'downloading',
+            'total_items': len(items),
+            'completed_items': 0,
+            'failed_items': 0,
+            'current_index': 1,
+            'overall_progress': 0.0,
+            'current_title': items[0].get('title', 'Initializing...') if items else 'Initializing...',
+            'current_progress': 0.0,
+            'speed_str': '-- MB/s',
+            'eta_str': '--:--',
+            'items': [
+                {
+                    'url': it.get('url'),
+                    'title': it.get('title', f"Video {idx+1}"),
+                    'thumbnail': it.get('thumbnail'),
+                    'duration_str': it.get('duration_str'),
+                    'status': 'queued',
+                    'error': None
+                }
+                for idx, it in enumerate(items)
+            ],
+            'stage': f'Queued {len(items)} items for batch download...'
+        }
+        asyncio.create_task(self._run_batch_task(batch_id, items, mode, quality_id, container))
+        return batch_id
+
+    async def _run_batch_task(
+        self,
+        batch_id: str,
+        items: List[Dict[str, Any]],
+        mode: str,
+        quality_id: str,
+        container: str
+    ):
+        batch = self.active_batches[batch_id]
+        loop = asyncio.get_running_loop()
+        total = len(items)
+
+        for i, item in enumerate(items):
+            batch['current_index'] = i + 1
+            batch['current_title'] = item.get('title') or f"Video {i+1}"
+            batch['current_progress'] = 0.0
+            batch['items'][i]['status'] = 'downloading'
+            batch['stage'] = f"Downloading item {i+1} of {total}: {batch['current_title']}..."
+
+            sub_id = str(uuid.uuid4())
+            self.active_downloads[sub_id] = {
+                'id': sub_id,
+                'batch_id': batch_id,
+                'url': item.get('url'),
+                'status': 'starting',
+                'progress': 0,
+                'downloaded_bytes': 0,
+                'total_bytes': 0,
+                'speed_str': '0 KB/s',
+                'eta_str': '--:--',
+                'filename': '',
+                'filepath': '',
+                'error': None,
+                'title': item.get('title') or f"Video {i+1}",
+                'stage': 'Starting download pipeline...'
+            }
+
+            try:
+                await loop.run_in_executor(
+                    None,
+                    self._execute_yt_dlp,
+                    sub_id,
+                    item.get('url'),
+                    mode,
+                    quality_id,
+                    container,
+                    False,
+                    None,
+                    item.get('title')
+                )
+
+                sub_task = self.active_downloads[sub_id]
+                if sub_task.get('status') == 'finished':
+                    batch['items'][i]['status'] = 'finished'
+                    batch['completed_items'] += 1
+                    try:
+                        from .history import add_to_history
+                        filepath = sub_task.get('filepath')
+                        filesize = os.path.getsize(filepath) if filepath and os.path.exists(filepath) else 0
+                        add_to_history({
+                            "id": sub_id,
+                            "title": sub_task.get("title") or item.get('title'),
+                            "url": item.get('url'),
+                            "filepath": filepath,
+                            "filename": sub_task.get("filename"),
+                            "filesize": filesize,
+                            "filesize_str": format_size(filesize),
+                            "thumbnail": item.get("thumbnail"),
+                            "uploader": item.get("uploader") or "Batch Downloader",
+                            "duration_str": item.get("duration_str"),
+                            "mode": mode,
+                            "quality": quality_id
+                        })
+                    except Exception as h_err:
+                        print(f"Error saving batch history item: {h_err}")
+                else:
+                    batch['items'][i]['status'] = 'error'
+                    batch['items'][i]['error'] = sub_task.get('error') or 'Download incomplete'
+                    batch['failed_items'] += 1
+            except Exception as e:
+                batch['items'][i]['status'] = 'error'
+                batch['items'][i]['error'] = str(e)
+                batch['failed_items'] += 1
+
+            batch['overall_progress'] = round(((i + 1) / total) * 100.0, 1)
+
+        batch['status'] = 'finished'
+        batch['stage'] = f"Batch finished! {batch['completed_items']} of {total} items downloaded."
+        batch['overall_progress'] = 100.0
 
     def _download_direct_stream(
         self,
@@ -1261,3 +1618,6 @@ class VideoDownloader:
 
     def get_progress(self, download_id: str) -> Optional[Dict[str, Any]]:
         return self.active_downloads.get(download_id)
+
+    def get_batch_progress(self, batch_id: str) -> Optional[Dict[str, Any]]:
+        return self.active_batches.get(batch_id)

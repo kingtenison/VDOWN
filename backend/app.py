@@ -1,6 +1,6 @@
 import os
 import asyncio
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Query, BackgroundTasks
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -45,6 +45,12 @@ class DownloadRequest(BaseModel):
     thumbnail: Optional[str] = None
     duration_str: Optional[str] = None
     uploader: Optional[str] = None
+
+class BatchDownloadRequest(BaseModel):
+    items: List[Dict[str, Any]]
+    mode: str = "video"
+    quality_id: str = "1080"
+    container: str = "mp4"
 
 class ActionRequest(BaseModel):
     filepath: Optional[str] = None
@@ -137,6 +143,25 @@ async def get_download_progress(download_id: str):
         task["history_saved"] = True
 
     return task
+
+@app.post("/api/batch-download")
+async def start_batch_download_endpoint(req: BatchDownloadRequest):
+    if not req.items:
+        raise HTTPException(status_code=400, detail="No items selected for batch download.")
+    batch_id = downloader.start_batch_download(
+        items=req.items,
+        mode=req.mode,
+        quality_id=req.quality_id,
+        container=req.container
+    )
+    return {"success": True, "batch_id": batch_id}
+
+@app.get("/api/batch-progress/{batch_id}")
+async def get_batch_progress_endpoint(batch_id: str):
+    batch = downloader.get_batch_progress(batch_id)
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch task not found")
+    return batch
 
 @app.websocket("/ws/progress/{download_id}")
 async def websocket_progress(websocket: WebSocket, download_id: str):

@@ -78,7 +78,7 @@
           </div>
 
           <!-- URL Input Bar -->
-          <div class="search-input-box">
+          <div class="search-input-box" id="search-input-box">
             <div class="input-platform-icon" id="platform-icon-wrapper">
               <i class="fas fa-link" id="current-platform-icon"></i>
             </div>
@@ -89,7 +89,16 @@
               autocomplete="off" 
               spellcheck="false"
             >
+            <textarea
+              id="batch-url-textarea"
+              class="batch-url-textarea"
+              placeholder="Paste multiple URLs (one per line) or collection link...&#10;e.g.&#10;https://www.youtube.com/watch?v=...&#10;https://soundcloud.com/...&#10;https://pimpbunny.com/videos/..."
+              style="display: none;"
+            ></textarea>
             <div class="input-actions-group">
+              <button type="button" class="action-btn-chip" id="batch-toggle-btn" title="Toggle Multi-Link / Batch Input">
+                <i class="fas fa-layer-group"></i> <span id="batch-toggle-label">Batch</span>
+              </button>
               <button type="button" class="action-btn-chip" id="paste-btn" title="Paste from clipboard">
                 <i class="fas fa-paste"></i> <span>Paste</span>
               </button>
@@ -122,6 +131,12 @@
                 <span>More Links</span> <i class="fas fa-chevron-down"></i>
               </button>
               <div class="demo-dropdown-menu" id="demo-dropdown-menu">
+                <button type="button" class="demo-menu-item" data-url="https://pimpbunny.com/onlyfans-creators/keiran-lee/">
+                  <i class="fas fa-layer-group" style="color: #FF5C8A;"></i> PimpBunny Creator (32 Videos Batch)
+                </button>
+                <button type="button" class="demo-menu-item" data-url="https://www.youtube.com/playlist?list=PL15B1E77BB5708555">
+                  <i class="fab fa-youtube" style="color: #FF4040;"></i> YouTube Playlist (Top Hits Batch)
+                </button>
                 <button type="button" class="demo-menu-item" data-url="https://viralxxxporn.com/video/535804/kyneko-and-gattouz0-enjoy-intense-second-session-filming/">
                   <i class="fas fa-fire" style="color: #B8A9FF;"></i> ViralXXX 1080p (KVS Multi-Quality)
                 </button>
@@ -340,6 +355,116 @@
           </div>
         </div>
 
+      </div>
+    </section>
+
+    <!-- Bento Batch Download Hub Section (for Playlists, Multi-URLs & Creator Collections) -->
+    <section class="bento-batch-section" id="batch-section" style="display: none;">
+      <div class="bento-card bento-batch-card">
+        <div class="batch-header-bar">
+          <div class="batch-header-main">
+            <div class="batch-badge-row">
+              <span class="preview-platform-badge" id="batch-platform-badge">
+                <i class="fas fa-layer-group"></i> <span id="batch-platform-name">Batch Collection</span>
+              </span>
+              <span class="batch-count-pill font-display" id="batch-count-pill">32 Videos</span>
+              <span class="batch-selected-pill font-display" id="batch-selected-pill">32 Selected</span>
+            </div>
+            <h3 class="batch-collection-title font-display" id="batch-collection-title">Collection Title</h3>
+            <p class="batch-collection-desc">Select individual videos to download or grab the entire collection in your desired quality.</p>
+          </div>
+
+          <div class="batch-global-controls">
+            <div class="batch-control-group">
+              <label for="batch-quality-dropdown"><i class="fas fa-film"></i> Quality:</label>
+              <select id="batch-quality-dropdown" class="bento-select">
+                <option value="1080">1080p Full HD</option>
+                <option value="720" selected>720p HD (Fast & Optimal)</option>
+                <option value="480">480p SD</option>
+                <option value="best_mp3_320">MP3 Audio (320 kbps)</option>
+              </select>
+            </div>
+
+            <div class="batch-control-group">
+              <label for="batch-container-dropdown"><i class="fas fa-box-archive"></i> Format:</label>
+              <select id="batch-container-dropdown" class="bento-select">
+                <option value="mp4" selected>MP4</option>
+                <option value="mkv">MKV</option>
+                <option value="mp3">MP3</option>
+              </select>
+            </div>
+
+            <div class="batch-buttons-row">
+              <button type="button" class="action-btn-chip batch-select-btn" id="batch-select-all-btn">
+                <i class="fas fa-check-double"></i> <span>Deselect All</span>
+              </button>
+              <button type="button" class="bento-download-btn font-display" id="start-batch-btn">
+                <i class="fas fa-cloud-arrow-down"></i>
+                <span id="batch-start-label">Download Selected (32)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scrollable Bento Grid of Collection Videos -->
+        <div class="batch-items-container" id="batch-items-grid">
+          <!-- Dynamic Items Injected Here -->
+        </div>
+      </div>
+    </section>
+
+    <!-- Bento Batch Active Progress Tracker -->
+    <section class="bento-progress-section" id="active-batch-section" style="display: none;">
+      <div class="bento-card bento-progress-card">
+        <div class="progress-top-row">
+          <div class="progress-thumb-container">
+            <div class="batch-active-icon-box">
+              <i class="fas fa-layer-group"></i>
+            </div>
+          </div>
+          <div class="progress-info-group">
+            <div class="progress-status-badges">
+              <span class="badge-status-pill" id="batch-status-badge">Batch Downloading</span>
+              <span class="badge-quality-pill font-display" id="batch-queue-step">Item 1 of 32</span>
+            </div>
+            <h4 class="progress-media-title font-display" id="batch-item-title">Initializing batch downloads...</h4>
+            <p class="progress-stage-desc" id="batch-stage-text">Connecting to high-speed stream servers...</p>
+          </div>
+        </div>
+
+        <!-- Dual Progress Meters -->
+        <div class="batch-dual-meters">
+          <div class="meter-meta-label">
+            <span>Overall Batch Progress (<span id="batch-completed-count">0</span> / <span id="batch-total-count">32</span> items completed)</span>
+            <strong class="font-display" id="batch-overall-pct">0%</strong>
+          </div>
+          <div class="bento-meter-wrapper">
+            <div class="bento-meter-track">
+              <div class="bento-meter-fill" id="batch-overall-bar" style="width: 0%;">
+                <div class="meter-glow-edge"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="meter-meta-label" style="margin-top: 14px;">
+            <span>Current File Progress</span>
+            <strong class="font-display" id="batch-current-pct">0%</strong>
+          </div>
+          <div class="bento-meter-wrapper">
+            <div class="bento-meter-track">
+              <div class="bento-meter-fill" id="batch-current-bar" style="width: 0%; background: linear-gradient(90deg, #7BBBFF 0%, #B8A9FF 100%);">
+                <div class="meter-glow-edge"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bento-metrics-row">
+          <div class="metric-item"><span class="m-label">Current Speed:</span> <strong class="m-val" id="batch-speed-val">-- MB/s</strong></div>
+          <div class="metric-item"><span class="m-label">Est. Time Remaining:</span> <strong class="m-val" id="batch-eta-val">--:--</strong></div>
+          <div class="metric-item"><span class="m-label">Items Successful:</span> <strong class="m-val font-display" id="batch-success-val" style="color: var(--accent-emerald);">0</strong></div>
+          <div class="metric-item"><span class="m-label">Items Failed:</span> <strong class="m-val font-display" id="batch-failed-val" style="color: var(--accent-rose);">0</strong></div>
+        </div>
       </div>
     </section>
 

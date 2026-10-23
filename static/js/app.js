@@ -6,7 +6,12 @@
 document.addEventListener('DOMContentLoaded', () => {
   // Application State
   const state = {
+    isBatchMode: false,
     currentMedia: null,
+    currentBatchMedia: null,
+    selectedBatchItems: new Set(),
+    activeBatchId: null,
+    batchPollingInterval: null,
     selectedMode: 'video', // 'video', 'audio', 'raw'
     selectedQualityId: '1080',
     selectedLabel: '1080p Full HD',
@@ -19,10 +24,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // DOM Elements - Search & Input
   const urlInput = document.getElementById('video-url-input');
+  const batchUrlTextarea = document.getElementById('batch-url-textarea');
+  const batchToggleBtn = document.getElementById('batch-toggle-btn');
+  const batchToggleLabel = document.getElementById('batch-toggle-label');
   const pasteBtn = document.getElementById('paste-btn');
   const clearBtn = document.getElementById('clear-btn');
   const fetchBtn = document.getElementById('fetch-info-btn');
   const platformIcon = document.getElementById('current-platform-icon');
+
+  // Batch Hub Elements
+  const batchSection = document.getElementById('batch-section');
+  const batchPlatformBadge = document.getElementById('batch-platform-badge');
+  const batchPlatformName = document.getElementById('batch-platform-name');
+  const batchCountPill = document.getElementById('batch-count-pill');
+  const batchSelectedPill = document.getElementById('batch-selected-pill');
+  const batchCollectionTitle = document.getElementById('batch-collection-title');
+  const batchQualityDropdown = document.getElementById('batch-quality-dropdown');
+  const batchContainerDropdown = document.getElementById('batch-container-dropdown');
+  const batchSelectAllBtn = document.getElementById('batch-select-all-btn');
+  const startBatchBtn = document.getElementById('start-batch-btn');
+  const batchStartLabel = document.getElementById('batch-start-label');
+  const batchItemsGrid = document.getElementById('batch-items-grid');
+
+  // Batch Progress Elements
+  const activeBatchSection = document.getElementById('active-batch-section');
+  const batchStatusBadge = document.getElementById('batch-status-badge');
+  const batchQueueStep = document.getElementById('batch-queue-step');
+  const batchItemTitle = document.getElementById('batch-item-title');
+  const batchStageText = document.getElementById('batch-stage-text');
+  const batchCompletedCount = document.getElementById('batch-completed-count');
+  const batchTotalCount = document.getElementById('batch-total-count');
+  const batchOverallPct = document.getElementById('batch-overall-pct');
+  const batchOverallBar = document.getElementById('batch-overall-bar');
+  const batchCurrentPct = document.getElementById('batch-current-pct');
+  const batchCurrentBar = document.getElementById('batch-current-bar');
+  const batchSpeedVal = document.getElementById('batch-speed-val');
+  const batchEtaVal = document.getElementById('batch-eta-val');
+  const batchSuccessVal = document.getElementById('batch-success-val');
+  const batchFailedVal = document.getElementById('batch-failed-val');
   
   // Error Banner
   const errorBanner = document.getElementById('error-banner');
@@ -207,6 +246,60 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  if (batchUrlTextarea) {
+    batchUrlTextarea.addEventListener('input', () => {
+      const val = batchUrlTextarea.value.trim();
+      clearBtn.style.display = val ? 'inline-flex' : 'none';
+    });
+  }
+
+  if (batchToggleBtn) {
+    batchToggleBtn.addEventListener('click', () => {
+      setBatchMode(!state.isBatchMode);
+    });
+  }
+
+  function setBatchMode(enabled) {
+    state.isBatchMode = enabled;
+    if (enabled) {
+      batchToggleBtn.classList.add('active');
+      if (batchToggleLabel) batchToggleLabel.textContent = 'Single Mode';
+      if (batchUrlTextarea) batchUrlTextarea.style.display = 'block';
+      urlInput.style.display = 'none';
+      if (urlInput.value.trim() && batchUrlTextarea && !batchUrlTextarea.value.trim()) {
+        batchUrlTextarea.value = urlInput.value.trim();
+      }
+      if (batchUrlTextarea) {
+        batchUrlTextarea.focus();
+        clearBtn.style.display = batchUrlTextarea.value.trim() ? 'inline-flex' : 'none';
+      }
+      platformIcon.className = 'fas fa-layer-group';
+      platformIcon.style.color = '#7BBBFF';
+    } else {
+      batchToggleBtn.classList.remove('active');
+      if (batchToggleLabel) batchToggleLabel.textContent = 'Batch';
+      if (batchUrlTextarea) batchUrlTextarea.style.display = 'none';
+      urlInput.style.display = 'block';
+      if (batchUrlTextarea && batchUrlTextarea.value.trim() && !urlInput.value.trim()) {
+        urlInput.value = batchUrlTextarea.value.split('\n')[0].trim();
+      }
+      urlInput.focus();
+      clearBtn.style.display = urlInput.value.trim() ? 'inline-flex' : 'none';
+      updatePlatformIcon(urlInput.value.trim());
+    }
+  }
+
+  // Auto-detect pasting multiple URLs into single input
+  urlInput.addEventListener('paste', () => {
+    setTimeout(() => {
+      const val = urlInput.value;
+      if (val.includes('\n') || val.includes('\r')) {
+        setBatchMode(true);
+        if (batchUrlTextarea) batchUrlTextarea.value = val;
+      }
+    }, 50);
+  });
+
   pasteBtn.addEventListener('click', async () => {
     try {
       let text = '';
@@ -216,18 +309,33 @@ document.addEventListener('DOMContentLoaded', () => {
         text = prompt('Paste video or audio URL here:');
       }
       if (text) {
-        urlInput.value = text.trim();
-        clearBtn.style.display = 'inline-flex';
-        updatePlatformIcon(text);
+        if (text.includes('\n') || text.includes('\r')) {
+          setBatchMode(true);
+          if (batchUrlTextarea) batchUrlTextarea.value = text.trim();
+          clearBtn.style.display = 'inline-flex';
+        } else {
+          if (state.isBatchMode && batchUrlTextarea) {
+            batchUrlTextarea.value = text.trim();
+          } else {
+            urlInput.value = text.trim();
+            updatePlatformIcon(text);
+          }
+          clearBtn.style.display = 'inline-flex';
+        }
         showToast('Link pasted', 'info');
         fetchVideoInfo();
       }
     } catch (err) {
       const fallback = prompt('Paste video or audio URL here:');
       if (fallback) {
-        urlInput.value = fallback.trim();
+        if (fallback.includes('\n') || fallback.includes('\r')) {
+          setBatchMode(true);
+          if (batchUrlTextarea) batchUrlTextarea.value = fallback.trim();
+        } else {
+          urlInput.value = fallback.trim();
+          updatePlatformIcon(fallback);
+        }
         clearBtn.style.display = 'inline-flex';
-        updatePlatformIcon(fallback);
         fetchVideoInfo();
       }
     }
@@ -235,15 +343,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   clearBtn.addEventListener('click', () => {
     urlInput.value = '';
+    if (batchUrlTextarea) batchUrlTextarea.value = '';
     clearBtn.style.display = 'none';
     updatePlatformIcon('');
-    urlInput.focus();
+    if (state.isBatchMode && batchUrlTextarea) {
+      batchUrlTextarea.focus();
+    } else {
+      urlInput.focus();
+    }
   });
 
   // Demo Sample Pills & Dropdown
-  document.querySelectorAll('.sample-chip[data-url]').forEach(pill => {
+  document.querySelectorAll('.demo-pill[data-url], .sample-chip[data-url]').forEach(pill => {
     pill.addEventListener('click', () => {
       const demoUrl = pill.dataset.url;
+      if (state.isBatchMode) setBatchMode(false);
       urlInput.value = demoUrl;
       clearBtn.style.display = 'inline-flex';
       updatePlatformIcon(demoUrl);
@@ -262,6 +376,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.demo-menu-item').forEach(item => {
       item.addEventListener('click', () => {
         const demoUrl = item.dataset.url;
+        if (state.isBatchMode) setBatchMode(false);
         urlInput.value = demoUrl;
         clearBtn.style.display = 'inline-flex';
         updatePlatformIcon(demoUrl);
@@ -297,10 +412,12 @@ document.addEventListener('DOMContentLoaded', () => {
   fetchBtn.addEventListener('click', fetchVideoInfo);
 
   async function fetchVideoInfo() {
-    const url = urlInput.value.trim();
+    const rawVal = (state.isBatchMode && batchUrlTextarea) ? batchUrlTextarea.value : urlInput.value;
+    const url = (rawVal || '').trim();
     if (!url) {
-      showError('Empty URL', 'Please enter or paste a valid video URL.');
-      urlInput.focus();
+      showError('Empty URL', state.isBatchMode ? 'Please enter or paste one or more URLs.' : 'Please enter or paste a valid video URL.');
+      if (state.isBatchMode && batchUrlTextarea) batchUrlTextarea.focus();
+      else urlInput.focus();
       return;
     }
 
@@ -319,22 +436,32 @@ document.addEventListener('DOMContentLoaded', () => {
         throw new Error(json.detail || 'Failed to extract video information.');
       }
 
-      state.currentMedia = json.data;
-      renderMediaDetails(json.data);
-      renderQualitySelectors(json.data);
-
-      // Auto-switch to audio tab if no video streams exist (e.g. music/audio sites)
-      if ((!json.data.video_qualities || json.data.video_qualities.length === 0) && (json.data.audio_options && json.data.audio_options.length > 0)) {
-        const audioTabBtn = document.getElementById('tab-btn-audio');
-        if (audioTabBtn) audioTabBtn.click();
+      if (json.data && json.data.is_playlist) {
+        state.currentBatchMedia = json.data;
+        resultSection.style.display = 'none';
+        renderBatchCollection(json.data);
+        batchSection.style.display = 'block';
+        batchSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        showToast(`Loaded collection with ${json.data.playlist_count} videos!`, 'info');
       } else {
-        const videoTabBtn = document.getElementById('tab-btn-video');
-        if (videoTabBtn) videoTabBtn.click();
-      }
+        if (batchSection) batchSection.style.display = 'none';
+        state.currentMedia = json.data;
+        renderMediaDetails(json.data);
+        renderQualitySelectors(json.data);
 
-      resultSection.style.display = 'block';
-      resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      showToast('Media inspected & formats ready', 'info');
+        // Auto-switch to audio tab if no video streams exist (e.g. music/audio sites)
+        if ((!json.data.video_qualities || json.data.video_qualities.length === 0) && (json.data.audio_options && json.data.audio_options.length > 0)) {
+          const audioTabBtn = document.getElementById('tab-btn-audio');
+          if (audioTabBtn) audioTabBtn.click();
+        } else {
+          const videoTabBtn = document.getElementById('tab-btn-video');
+          if (videoTabBtn) videoTabBtn.click();
+        }
+
+        resultSection.style.display = 'block';
+        resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        showToast('Media inspected & formats ready', 'info');
+      }
     } catch (err) {
       console.error(err);
       showError('Extraction Error', err.message);
@@ -354,6 +481,253 @@ document.addEventListener('DOMContentLoaded', () => {
       btnText.style.display = 'inline-flex';
       btnLoader.style.display = 'none';
       fetchBtn.disabled = false;
+    }
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  // ==========================================================================
+  // Render Batch / Playlist Collection
+  // ==========================================================================
+  function renderBatchCollection(data) {
+    if (batchCollectionTitle) batchCollectionTitle.textContent = data.title || 'Collection';
+    if (batchCountPill) batchCountPill.textContent = `${data.playlist_count} Videos`;
+    if (data.platform && batchPlatformName) {
+      batchPlatformName.textContent = data.platform.name || 'Batch Collection';
+      const iconEl = batchPlatformBadge.querySelector('i');
+      if (iconEl && data.platform.icon) iconEl.className = data.platform.icon;
+    }
+
+    state.selectedBatchItems = new Set(data.entries.map((_, idx) => idx));
+    updateBatchSelectionUI();
+
+    if (!batchItemsGrid) return;
+    batchItemsGrid.innerHTML = '';
+    data.entries.forEach((entry, idx) => {
+      const card = document.createElement('div');
+      card.className = 'batch-item-card selected';
+      card.dataset.index = idx;
+
+      const thumbUrl = entry.thumbnail || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400';
+      const durationStr = entry.duration_str || '--:--';
+      const titleStr = entry.title || `Video ${idx + 1}`;
+
+      card.innerHTML = `
+        <div class="batch-card-check">
+          <input type="checkbox" class="batch-checkbox" checked data-index="${idx}">
+        </div>
+        <div class="batch-card-thumb-box">
+          <img src="${thumbUrl}" alt="Thumb" class="batch-card-thumb-img" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400'">
+          <span class="batch-card-duration">${durationStr}</span>
+        </div>
+        <div class="batch-card-meta">
+          <div class="batch-card-title" title="${escapeHtml(titleStr)}">${escapeHtml(titleStr)}</div>
+          <a href="${entry.url}" target="_blank" rel="noopener noreferrer" class="batch-card-link-out" onclick="event.stopPropagation()">
+            <i class="fas fa-arrow-up-right-from-square"></i> Source link
+          </a>
+        </div>
+      `;
+
+      card.addEventListener('click', (e) => {
+        if (e.target.tagName && e.target.tagName.toLowerCase() === 'a') return;
+        const cb = card.querySelector('.batch-checkbox');
+        const isChecked = !cb.checked;
+        cb.checked = isChecked;
+        if (isChecked) {
+          state.selectedBatchItems.add(idx);
+          card.classList.add('selected');
+        } else {
+          state.selectedBatchItems.delete(idx);
+          card.classList.remove('selected');
+        }
+        updateBatchSelectionUI();
+      });
+
+      const cb = card.querySelector('.batch-checkbox');
+      cb.addEventListener('change', (e) => {
+        e.stopPropagation();
+        if (cb.checked) {
+          state.selectedBatchItems.add(idx);
+          card.classList.add('selected');
+        } else {
+          state.selectedBatchItems.delete(idx);
+          card.classList.remove('selected');
+        }
+        updateBatchSelectionUI();
+      });
+
+      batchItemsGrid.appendChild(card);
+    });
+  }
+
+  function updateBatchSelectionUI() {
+    const total = (state.currentBatchMedia && state.currentBatchMedia.entries) ? state.currentBatchMedia.entries.length : 0;
+    const selectedCount = state.selectedBatchItems.size;
+    if (batchSelectedPill) batchSelectedPill.textContent = `${selectedCount} Selected`;
+    if (batchStartLabel) batchStartLabel.textContent = `Download Selected (${selectedCount})`;
+    
+    if (batchSelectAllBtn) {
+      if (selectedCount === total && total > 0) {
+        batchSelectAllBtn.innerHTML = '<i class="fas fa-xmark"></i> <span>Deselect All</span>';
+      } else {
+        batchSelectAllBtn.innerHTML = '<i class="fas fa-check-double"></i> <span>Select All</span>';
+      }
+    }
+    if (startBatchBtn) startBatchBtn.disabled = (selectedCount === 0);
+  }
+
+  if (batchSelectAllBtn) {
+    batchSelectAllBtn.addEventListener('click', () => {
+      if (!state.currentBatchMedia || !state.currentBatchMedia.entries) return;
+      const total = state.currentBatchMedia.entries.length;
+      const isAllSelected = (state.selectedBatchItems.size === total);
+
+      const cards = batchItemsGrid.querySelectorAll('.batch-item-card');
+      if (isAllSelected) {
+        state.selectedBatchItems.clear();
+        cards.forEach(c => {
+          c.classList.remove('selected');
+          const cb = c.querySelector('.batch-checkbox');
+          if (cb) cb.checked = false;
+        });
+      } else {
+        state.selectedBatchItems = new Set(state.currentBatchMedia.entries.map((_, i) => i));
+        cards.forEach(c => {
+          c.classList.add('selected');
+          const cb = c.querySelector('.batch-checkbox');
+          if (cb) cb.checked = true;
+        });
+      }
+      updateBatchSelectionUI();
+    });
+  }
+
+  if (startBatchBtn) {
+    startBatchBtn.addEventListener('click', async () => {
+      if (!state.currentBatchMedia || state.selectedBatchItems.size === 0) {
+        showToast('Please select at least one video to download', 'warning');
+        return;
+      }
+
+      const selectedEntries = Array.from(state.selectedBatchItems)
+        .sort((a, b) => a - b)
+        .map(idx => state.currentBatchMedia.entries[idx]);
+
+      const qVal = batchQualityDropdown ? batchQualityDropdown.value : '720';
+      const mode = qVal.includes('mp3') ? 'audio' : 'video';
+      const container = batchContainerDropdown ? batchContainerDropdown.value : 'mp4';
+
+      try {
+        startBatchBtn.disabled = true;
+        startBatchBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>Starting Queue...</span>';
+
+        const res = await fetch('/api/batch-download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items: selectedEntries,
+            mode: mode,
+            quality_id: qVal,
+            container: container
+          })
+        });
+
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          throw new Error(json.detail || 'Failed to start batch download.');
+        }
+
+        state.activeBatchId = json.batch_id;
+        initActiveBatchUI(selectedEntries.length);
+        trackBatchProgress(json.batch_id);
+        showToast(`Batch download started (${selectedEntries.length} items)`, 'info');
+      } catch (err) {
+        console.error(err);
+        showToast(err.message, 'error');
+      } finally {
+        startBatchBtn.disabled = false;
+        updateBatchSelectionUI();
+      }
+    });
+  }
+
+  function initActiveBatchUI(totalCount) {
+    if (activeBatchSection) activeBatchSection.style.display = 'block';
+    if (batchStatusBadge) {
+      batchStatusBadge.textContent = 'Batch Downloading';
+      batchStatusBadge.className = 'badge-status-pill';
+    }
+    if (batchQueueStep) batchQueueStep.textContent = `Item 1 of ${totalCount}`;
+    if (batchCompletedCount) batchCompletedCount.textContent = '0';
+    if (batchTotalCount) batchTotalCount.textContent = totalCount.toString();
+    if (batchOverallPct) batchOverallPct.textContent = '0%';
+    if (batchOverallBar) batchOverallBar.style.width = '0%';
+    if (batchCurrentPct) batchCurrentPct.textContent = '0%';
+    if (batchCurrentBar) batchCurrentBar.style.width = '0%';
+    if (batchSpeedVal) batchSpeedVal.textContent = '-- MB/s';
+    if (batchEtaVal) batchEtaVal.textContent = '--:--';
+    if (batchSuccessVal) batchSuccessVal.textContent = '0';
+    if (batchFailedVal) batchFailedVal.textContent = '0';
+    if (activeBatchSection) activeBatchSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function trackBatchProgress(batchId) {
+    if (state.batchPollingInterval) clearInterval(state.batchPollingInterval);
+    state.batchPollingInterval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/batch-progress/${batchId}`);
+        if (!res.ok) return;
+        const batch = await res.json();
+        updateBatchProgressUI(batch);
+        if (batch.status === 'finished') {
+          clearInterval(state.batchPollingInterval);
+          loadHistory();
+          showToast(`Batch completed: ${batch.completed_items} files downloaded!`, 'success');
+        }
+      } catch (e) {
+        console.error('Batch polling error:', e);
+      }
+    }, 600);
+  }
+
+  function updateBatchProgressUI(batch) {
+    if (!batch) return;
+    const total = batch.total_items || 1;
+    const curIdx = Math.min(batch.current_index || 1, total);
+    if (batchQueueStep) batchQueueStep.textContent = `Item ${curIdx} of ${total}`;
+    if (batchItemTitle) batchItemTitle.textContent = batch.current_title || 'Downloading...';
+    if (batchStageText) batchStageText.textContent = batch.stage || 'In progress...';
+
+    const overall = Math.min(Math.max(batch.overall_progress || 0, 0), 100);
+    if (batchOverallPct) batchOverallPct.textContent = `${overall.toFixed(1)}%`;
+    if (batchOverallBar) batchOverallBar.style.width = `${overall}%`;
+
+    const current = Math.min(Math.max(batch.current_progress || 0, 0), 100);
+    if (batchCurrentPct) batchCurrentPct.textContent = `${current.toFixed(1)}%`;
+    if (batchCurrentBar) batchCurrentBar.style.width = `${current}%`;
+
+    if (batchCompletedCount) batchCompletedCount.textContent = (batch.completed_items || 0).toString();
+    if (batchSuccessVal) batchSuccessVal.textContent = (batch.completed_items || 0).toString();
+    if (batchFailedVal) batchFailedVal.textContent = (batch.failed_items || 0).toString();
+
+    if (batch.speed_str && batchSpeedVal) batchSpeedVal.textContent = batch.speed_str;
+    if (batch.eta_str && batchEtaVal) batchEtaVal.textContent = batch.eta_str;
+
+    if (batch.status === 'finished') {
+      if (batchStatusBadge) {
+        batchStatusBadge.textContent = 'Completed';
+        batchStatusBadge.className = 'badge-status-pill finished';
+      }
+      if (batchOverallBar) batchOverallBar.style.width = '100%';
+      if (batchCurrentBar) batchCurrentBar.style.width = '100%';
     }
   }
 
