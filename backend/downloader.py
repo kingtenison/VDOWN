@@ -922,9 +922,12 @@ class VideoDownloader:
                 download_id, url, mode, quality_id, container, embed_subtitles, custom_filename, title
             )
         except Exception as e:
+            err_msg = str(e)
+            if "sign in to confirm you" in err_msg.lower() or "bot" in err_msg.lower():
+                err_msg = "YouTube blocks downloads from cloud datacenter IPs (Vercel). Run VDOWN locally using 'start.bat' on your computer for unrestricted high-speed YouTube downloads!"
             task_info['status'] = 'error'
-            task_info['error'] = str(e)
-            task_info['stage'] = f"Failed: {str(e)}"
+            task_info['error'] = err_msg
+            task_info['stage'] = f"Failed: {err_msg}"
 
     def _download_direct_stream(
         self,
