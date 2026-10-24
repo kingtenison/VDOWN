@@ -6,6 +6,7 @@ import asyncio
 import urllib.request
 import urllib.parse
 import html
+import shutil
 from typing import Dict, Any, List, Optional
 import yt_dlp
 
@@ -24,6 +25,34 @@ except Exception:
         pass
 
 DEFAULT_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36'
+
+
+def get_available_js_runtimes() -> dict:
+    """Find available JS runtimes (Node.js, Deno, Bun, QuickJS) for yt-dlp challenge solving."""
+    runtimes = {}
+    node_path = shutil.which("node") or shutil.which("nodejs")
+    if not node_path and os.path.exists(r"C:\Program Files\nodejs\node.exe"):
+        node_path = r"C:\Program Files\nodejs\node.exe"
+    if node_path:
+        runtimes["node"] = {"path": node_path}
+    deno_path = shutil.which("deno")
+    if deno_path:
+        runtimes["deno"] = {"path": deno_path}
+    bun_path = shutil.which("bun")
+    if bun_path:
+        runtimes["bun"] = {"path": bun_path}
+    quickjs_path = shutil.which("quickjs")
+    if quickjs_path:
+        runtimes["quickjs"] = {"path": quickjs_path}
+    return runtimes
+
+
+def get_ffmpeg_dir() -> Optional[str]:
+    """Find directory containing verified FFmpeg binary."""
+    ffmpeg_exe = shutil.which("ffmpeg")
+    if ffmpeg_exe:
+        return os.path.dirname(os.path.abspath(ffmpeg_exe))
+    return None
 
 def format_size(bytes_size: Optional[int]) -> str:
     if not bytes_size or bytes_size <= 0:
@@ -128,8 +157,6 @@ class VideoDownloader:
         parsed = urllib.parse.urlparse(url or "")
         referer = f"{parsed.scheme}://{parsed.netloc}/" if parsed.netloc else "https://www.google.com/"
         
-        is_youtube = bool(url and ("youtube.com" in url or "youtu.be" in url))
-        
         opts = {
             'quiet': True,
             'no_warnings': True,
@@ -146,14 +173,13 @@ class VideoDownloader:
             }
         }
         
-        if is_youtube:
-            opts['extractor_args'] = {
-                'youtubetab': {'skip': ['webpage']},
-                'youtube': {
-                    'player_client': ['android', 'ios'],
-                    'player_skip': ['webpage', 'configs']
-                }
-            }
+        runtimes = get_available_js_runtimes()
+        if runtimes:
+            opts['js_runtimes'] = runtimes
+            
+        ffmpeg_dir = get_ffmpeg_dir()
+        if ffmpeg_dir:
+            opts['ffmpeg_location'] = ffmpeg_dir
             
         return opts
 
@@ -659,6 +685,8 @@ class VideoDownloader:
                 meta = json.loads(r.read().decode('utf-8'))
                 title = meta.get('title') or title
                 uploader = meta.get('author_name') or uploader
+                if meta.get('thumbnail_url'):
+                    thumb = meta['thumbnail_url']
         except Exception:
             thumb = f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
 
@@ -691,12 +719,12 @@ class VideoDownloader:
             'is_cloud_fallback': True
         }
 
-    def extract_info(self, url: str) -> Dict[str, Any]:
+    def extract_info(self, url: str, is_batch: bool = False) -> Dict[str, Any]:
         url = url.strip()
         # 0. Check for multi-URL input (separated by newlines, commas, or spaces)
         lines = [line.strip() for line in re.split(r'[\r\n,]+', url) if line.strip()]
         urls = [u for u in lines if u.startswith('http://') or u.startswith('https://')]
-        if len(urls) > 1:
+        if len(urls) > 1 or (is_batch and len(urls) > 0 and not any(k in url.lower() for k in ['playlist', 'onlyfans-creators', 'channels', 'models', 'categories', 'album'])):
             return self.create_multi_url_batch(urls)
 
         # Check for creator / gallery / channel / search page patterns
@@ -723,17 +751,16 @@ class VideoDownloader:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
         except Exception as e:
-            # If YouTube bot protection is encountered, retry with android client explicitly
             if is_yt:
                 try:
-                    mob_opts = dict(ydl_opts)
-                    mob_opts['extractor_args'] = {
+                    retry_opts = dict(ydl_opts)
+                    retry_opts['extractor_args'] = {
                         'youtube': {
-                            'player_client': ['android', 'ios']
+                            'player_client': ['mweb', 'web']
                         }
                     }
-                    with yt_dlp.YoutubeDL(mob_opts) as mob_ydl:
-                        info = mob_ydl.extract_info(url, download=False)
+                    with yt_dlp.YoutubeDL(retry_opts) as r_ydl:
+                        info = r_ydl.extract_info(url, download=False)
                 except Exception:
                     pass
 
@@ -1113,7 +1140,8 @@ class VideoDownloader:
         container: str = 'mp4',
         embed_subtitles: bool = False,
         custom_filename: Optional[str] = None,
-        title: Optional[str] = None
+        title: Optional[str] = None,
+        client_meta: Optional[Dict[str, Any]] = None
     ) -> str:
         download_id = str(uuid.uuid4())
         self.active_downloads[download_id] = {
@@ -1129,7 +1157,9 @@ class VideoDownloader:
             'filepath': '',
             'error': None,
             'title': title or 'Preparing download...',
-            'stage': 'Starting download pipeline...'
+            'stage': 'Starting download pipeline...',
+            'client_meta': client_meta or {},
+            'history_saved': False
         }
 
         asyncio.create_task(self._run_download_task(
@@ -1156,6 +1186,30 @@ class VideoDownloader:
                 self._execute_yt_dlp,
                 download_id, url, mode, quality_id, container, embed_subtitles, custom_filename, title
             )
+            # Guarantee history persistence immediately upon finish
+            if task_info.get('status') == 'finished' and not task_info.get('history_saved'):
+                try:
+                    from .history import add_to_history
+                    fp = task_info.get('filepath')
+                    fsize = os.path.getsize(fp) if fp and os.path.exists(fp) else 0
+                    meta = task_info.get('client_meta', {})
+                    add_to_history({
+                        "id": download_id,
+                        "title": task_info.get("title") or meta.get("title") or "Unknown Video",
+                        "url": task_info.get("url") or url,
+                        "filepath": fp,
+                        "filename": task_info.get("filename") or (os.path.basename(fp) if fp else "download"),
+                        "filesize": fsize,
+                        "filesize_str": format_size(fsize),
+                        "thumbnail": meta.get("thumbnail"),
+                        "uploader": meta.get("uploader"),
+                        "duration_str": meta.get("duration_str"),
+                        "mode": meta.get("mode") or mode,
+                        "quality": meta.get("quality_id") or quality_id
+                    })
+                    task_info['history_saved'] = True
+                except Exception as h_err:
+                    print(f"Error auto-saving download {download_id} to history: {h_err}")
         except Exception as e:
             err_msg = str(e)
             if "sign in to confirm you" in err_msg.lower() or "bot" in err_msg.lower():
@@ -1324,8 +1378,10 @@ class VideoDownloader:
             safe_title = f"download_{uuid.uuid4().hex[:8]}"
 
         target_ext = 'mp3' if mode == 'audio' else (container if container in ['mp4', 'mkv', 'webm'] else 'mp4')
-        temp_file = os.path.join(DOWNLOADS_DIR, f"{safe_title}.mp4")
         final_file = os.path.join(DOWNLOADS_DIR, f"{safe_title}.{target_ext}")
+        temp_file = os.path.join(DOWNLOADS_DIR, f"{safe_title}_{uuid.uuid4().hex[:6]}.part")
+
+        ffmpeg_bin = shutil.which('ffmpeg') or 'ffmpeg'
 
         # Check for HLS stream (.m3u8) which requires FFmpeg fragment assembling
         if '.m3u8' in stream_url.lower():
@@ -1333,7 +1389,7 @@ class VideoDownloader:
             task_info['stage'] = 'Downloading and assembling HLS stream with FFmpeg...'
             try:
                 ffmpeg_cmd = [
-                    'ffmpeg', '-y',
+                    ffmpeg_bin, '-y',
                     '-headers', f"User-Agent: {DEFAULT_USER_AGENT}\r\nReferer: {referer}\r\n",
                     '-i', stream_url,
                     '-c', 'copy',
@@ -1398,14 +1454,16 @@ class VideoDownloader:
             task_info['status'] = 'processing'
             task_info['stage'] = 'Converting to MP3 320 kbps...'
             try:
-                cmd = ['ffmpeg', '-y', '-i', temp_file, '-vn', '-acodec', 'libmp3lame', '-b:a', '320k', final_file]
+                cmd = [ffmpeg_bin, '-y', '-i', temp_file, '-vn', '-acodec', 'libmp3lame', '-b:a', '320k', final_file]
                 subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                if os.path.exists(temp_file) and temp_file != final_file:
+                if os.path.exists(temp_file):
                     os.remove(temp_file)
             except Exception:
-                final_file = temp_file
+                if os.path.exists(temp_file):
+                    os.replace(temp_file, final_file)
         else:
-            final_file = temp_file
+            if os.path.exists(temp_file):
+                os.replace(temp_file, final_file)
 
         task_info['status'] = 'finished'
         task_info['progress'] = 100.0
@@ -1440,10 +1498,16 @@ class VideoDownloader:
                     cleaned_pct = re.sub(r'[\x1b\x9b][\[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]', '', d['_percent_str']).replace('%', '').strip()
                     try:
                         percent = float(cleaned_pct)
-                    except:
+                    except Exception:
                         pass
 
-                task_info['progress'] = min(percent, 99.0)
+                # If first stream completed and second (audio) is downloading, smooth progress in 90-99% range
+                if task_info.get('_first_stream_done'):
+                    mapped_pct = min(round(90.0 + (percent * 0.09), 1), 99.0)
+                else:
+                    mapped_pct = min(round(percent * 0.90, 1) if mode == 'video' else round(percent, 1), 99.0)
+
+                task_info['progress'] = mapped_pct
                 task_info['downloaded_bytes'] = downloaded
                 task_info['total_bytes'] = total
                 
@@ -1459,9 +1523,10 @@ class VideoDownloader:
                 if filename:
                     task_info['filename'] = os.path.basename(filename)
 
-                task_info['stage'] = f"Downloading: {percent:.1f}% ({task_info['speed_str']}, ETA: {task_info['eta_str']})"
+                task_info['stage'] = f"Downloading: {mapped_pct:.1f}% ({task_info['speed_str']}, ETA: {task_info['eta_str']})"
 
             elif status == 'finished':
+                task_info['_first_stream_done'] = True
                 task_info['status'] = 'processing'
                 task_info['progress'] = 99.0
                 task_info['stage'] = "Processing & merging streams with FFmpeg..."
@@ -1481,7 +1546,7 @@ class VideoDownloader:
             out_name = f"{safe_name}.%(ext)s"
         elif title and title.strip():
             safe_name = re.sub(r'[\\/*?:"<>|]', '_', title.strip())[:150]
-            out_name = f"{safe_name}.%(ext)s"
+            out_name = f"{safe_name} [%(id)s].%(ext)s"
 
         out_template = os.path.join(DOWNLOADS_DIR, out_name)
 
@@ -1506,12 +1571,11 @@ class VideoDownloader:
             target_url = url
             referer = f"{parsed_url.scheme}://{parsed_url.netloc}/" if parsed_url.netloc else "https://www.google.com/"
         elif is_kvs_site:
-            # Re-fetch fresh stream URL for the chosen resolution to avoid expired tokens
             try:
                 target_height = 720
                 if quality_id.startswith('kvs_'):
                     target_height = int(quality_id.replace('kvs_', ''))
-                elif quality_id.isdigit() and int(quality_id) in [144, 240, 360, 480, 720, 1080, 1440, 2160, 4320]:
+                elif quality_id.isdigit():
                     target_height = int(quality_id)
                 fresh_kvs = self.extract_kvs_qualities(url)
                 if fresh_kvs:
@@ -1547,60 +1611,72 @@ class VideoDownloader:
             }
         }
 
-        if is_youtube:
-            ydl_opts['extractor_args'] = {
-                'youtubetab': {'skip': ['webpage']},
-                'youtube': {
-                    'player_client': ['android', 'ios'],
-                    'player_skip': ['webpage', 'configs']
-                }
-            }
+        runtimes = get_available_js_runtimes()
+        if runtimes:
+            ydl_opts['js_runtimes'] = runtimes
+            
+        ffmpeg_dir = get_ffmpeg_dir()
+        if ffmpeg_dir:
+            ydl_opts['ffmpeg_location'] = ffmpeg_dir
 
         target_ext = container if container in ['mp4', 'mkv', 'webm'] else 'mp4'
 
         if mode == 'audio':
-            if is_direct_stream:
-                ydl_opts['format'] = 'best'
-            else:
-                ydl_opts['format'] = 'bestaudio/best'
             target_ext = 'mp3'
             bitrate = '320'
-            if 'm4a' in quality_id:
+            if 'm4a' in quality_id or quality_id == 'best_m4a_aac':
                 target_ext = 'm4a'
-            elif 'wav' in quality_id:
+            elif 'wav' in quality_id or quality_id == 'lossless_wav':
                 target_ext = 'wav'
-            elif 'flac' in quality_id:
+            elif 'flac' in quality_id or quality_id == 'lossless_flac':
                 target_ext = 'flac'
+
+            if is_direct_stream:
+                ydl_opts['format'] = 'best'
+            elif target_ext == 'm4a':
+                ydl_opts['format'] = 'bestaudio[ext=m4a]/bestaudio/best'
+            else:
+                ydl_opts['format'] = 'bestaudio/best'
 
             ydl_opts['postprocessors'] = [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': target_ext,
                 'preferredquality': bitrate,
             }]
-            ydl_opts['writethumbnail'] = True
             ydl_opts['postprocessors'].append({'key': 'FFmpegMetadata', 'add_metadata': True})
             if target_ext in ['mp3', 'm4a']:
-                ydl_opts['postprocessors'].append({'key': 'EmbedThumbnail', 'already_have_thumbnail': False})
+                ydl_opts['writethumbnail'] = True
+                ydl_opts['postprocessors'].extend([
+                    {'key': 'FFmpegThumbnailsConvertor', 'format': 'jpg'},
+                    {'key': 'EmbedThumbnail', 'already_have_thumbnail': False}
+                ])
 
         elif mode == 'video':
             if is_direct_stream:
                 ydl_opts['format'] = 'best'
             elif quality_id and quality_id.isdigit():
                 h = int(quality_id)
-                if h in [144, 240, 360, 480, 720, 1080, 1440, 2160, 4320]:
+                if target_ext == 'mp4':
                     ydl_opts['format'] = (
+                        f"bestvideo[height<={h}][ext=mp4]+bestaudio[ext=m4a]/"
                         f"bestvideo[height<={h}]+bestaudio/"
-                        f"best[height<={h}][acodec!=none]/"
-                        f"bestvideo[height<={h}]+bestaudio[ext=m4a]/"
+                        f"best[height<={h}][ext=mp4]/"
                         f"best[height<={h}]/"
-                        f"18/best"
+                        f"best"
                     )
                 else:
-                    ydl_opts['format'] = f"{quality_id}+bestaudio/best[acodec!=none]/{quality_id}/18/best"
+                    ydl_opts['format'] = (
+                        f"bestvideo[height<={h}]+bestaudio/"
+                        f"best[height<={h}]/"
+                        f"best"
+                    )
             elif quality_id == 'best':
-                ydl_opts['format'] = "bestvideo+bestaudio/best[acodec!=none]/bestvideo+bestaudio[ext=m4a]/best/18"
+                if target_ext == 'mp4':
+                    ydl_opts['format'] = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best"
+                else:
+                    ydl_opts['format'] = "bestvideo+bestaudio/best"
             else:
-                ydl_opts['format'] = f"{quality_id}+bestaudio/best[acodec!=none]/{quality_id}/18/best"
+                ydl_opts['format'] = f"{quality_id}+bestaudio/best[acodec!=none]/{quality_id}/best"
 
             ydl_opts['merge_output_format'] = target_ext
 
@@ -1608,10 +1684,10 @@ class VideoDownloader:
                 ydl_opts['writesubtitles'] = True
                 ydl_opts['writeautomaticsub'] = True
                 ydl_opts['subtitleslangs'] = ['en.*', 'en']
-                ydl_opts['postprocessors'] = [{
-                    'key': 'FFmpegEmbedSubtitle',
-                    'already_have_subtitle': False
-                }]
+                ydl_opts['postprocessors'] = [
+                    {'key': 'FFmpegSubtitlesConvertor', 'format': 'srt'},
+                    {'key': 'FFmpegEmbedSubtitle', 'already_have_subtitle': False}
+                ]
 
         elif mode == 'raw':
             ydl_opts['format'] = f"{quality_id}+bestaudio/best/{quality_id}"
@@ -1619,67 +1695,85 @@ class VideoDownloader:
                 ydl_opts['merge_output_format'] = container
 
         info_dict = None
+        active_ydl = None
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 task_info['stage'] = "Extracting stream and downloading..."
                 info_dict = ydl.extract_info(target_url, download=True)
+                active_ydl = ydl
         except Exception as e:
-            if is_youtube:
-                # Fallback to single-stream mobile format (format 18) to bypass bot wall and SABR errors
+            try:
+                task_info['stage'] = "Retrying via high-compatibility stream..."
                 fallback_opts = dict(ydl_opts)
-                fallback_opts['format'] = '18/best[ext=mp4]/best'
-                fallback_opts['extractor_args'] = {
-                    'youtubetab': {'skip': ['webpage']},
-                    'youtube': {
-                        'player_client': ['android', 'ios'],
-                        'player_skip': ['webpage', 'configs']
-                    }
-                }
-                fallback_opts.pop('postprocessors', None)
-                fallback_opts.pop('merge_output_format', None)
-                task_info['stage'] = "Downloading via high-compatibility stream..."
+                if mode == 'video':
+                    fallback_opts['format'] = 'bestvideo+bestaudio/best[ext=mp4]/best'
+                elif mode == 'audio':
+                    fallback_opts['format'] = 'bestaudio/best'
+                    fallback_opts['writethumbnail'] = False
+                    fallback_opts['postprocessors'] = [
+                        p for p in fallback_opts.get('postprocessors', [])
+                        if p.get('key') not in ['EmbedThumbnail', 'FFmpegThumbnailsConvertor']
+                    ]
                 with yt_dlp.YoutubeDL(fallback_opts) as f_ydl:
                     info_dict = f_ydl.extract_info(target_url, download=True)
-            else:
-                # If specific format combination failed, try high-res single progressive stream before failing
-                try:
-                    resil_opts = dict(ydl_opts)
-                    resil_opts['format'] = 'best[ext=mp4]/best'
-                    with yt_dlp.YoutubeDL(resil_opts) as r_ydl:
-                        info_dict = r_ydl.extract_info(target_url, download=True)
-                except Exception:
+                    active_ydl = f_ydl
+            except Exception:
+                if is_youtube and mode == 'video':
+                    try:
+                        last_resort_opts = dict(ydl_opts)
+                        last_resort_opts['format'] = '18/best'
+                        last_resort_opts.pop('postprocessors', None)
+                        last_resort_opts.pop('merge_output_format', None)
+                        with yt_dlp.YoutubeDL(last_resort_opts) as lr_ydl:
+                            info_dict = lr_ydl.extract_info(target_url, download=True)
+                            active_ydl = lr_ydl
+                    except Exception:
+                        raise e
+                else:
                     raise e
 
         if info_dict:
             task_info['title'] = info_dict.get('title', task_info['title'])
             
-            # Resolve final filename
-            active_ydl = ydl if 'ydl' in locals() else f_ydl
-            final_file = active_ydl.prepare_filename(info_dict)
-            
-            base, _ = os.path.splitext(final_file)
-            if mode == 'audio':
-                final_file = f"{base}.{target_ext}"
-            elif mode == 'video' and 'merge_output_format' in ydl_opts:
-                final_file = f"{base}.{ydl_opts['merge_output_format']}"
+            final_file = None
+            # 1. First priority: exact file path reported in requested_downloads
+            req_dls = info_dict.get('requested_downloads') or []
+            for rd in req_dls:
+                rfp = rd.get('filepath')
+                if rfp and os.path.exists(rfp):
+                    final_file = rfp
+                    break
 
-            if not os.path.exists(final_file):
-                dirname = os.path.dirname(final_file)
-                basename = os.path.basename(base)
-                if os.path.exists(dirname):
-                    for f in os.listdir(dirname):
-                        # DO NOT pick .part, .ytdl, or .temp files as the finished file
-                        if f.startswith(basename) and not f.endswith('.part') and not f.endswith('.ytdl') and not f.endswith('.temp'):
-                            final_file = os.path.join(dirname, f)
+            # 2. Check active_ydl.prepare_filename
+            if not final_file or not os.path.exists(final_file):
+                prep_file = active_ydl.prepare_filename(info_dict) if active_ydl else None
+                if prep_file:
+                    base, ext = os.path.splitext(prep_file)
+                    candidates = [
+                        prep_file,
+                        f"{base}.{target_ext}",
+                        f"{base}.mp4",
+                        f"{base}.mkv",
+                        f"{base}.webm",
+                        f"{base}.mp3",
+                        f"{base}.m4a"
+                    ]
+                    for cand in candidates:
+                        if os.path.exists(cand) and not cand.endswith('.part') and not cand.endswith('.ytdl'):
+                            final_file = cand
                             break
 
-            if not os.path.exists(final_file):
-                dirname = os.path.dirname(final_file)
-                basename = os.path.basename(base)
-                if os.path.exists(dirname):
-                    part_files = [f for f in os.listdir(dirname) if f.startswith(basename) and (f.endswith('.part') or f.endswith('.ytdl'))]
-                    if part_files:
-                        raise RuntimeError("Download was interrupted before completion. Please retry.")
+                    if not final_file:
+                        dirname = os.path.dirname(prep_file)
+                        basename = os.path.basename(base)
+                        if os.path.exists(dirname):
+                            for f in os.listdir(dirname):
+                                if f.startswith(basename) and not f.endswith('.part') and not f.endswith('.ytdl') and not f.endswith('.temp'):
+                                    final_file = os.path.join(dirname, f)
+                                    break
+
+            if not final_file or not os.path.exists(final_file):
+                raise RuntimeError("Downloaded file could not be verified on disk. Please try again.")
 
             task_info['filepath'] = final_file
             task_info['filename'] = os.path.basename(final_file)
@@ -1744,16 +1838,6 @@ class VideoDownloader:
 
         # 3) yt-dlp: extract info and resolve progressive format
         opts = self.get_base_ydl_opts(url)
-        is_yt = any(k in url.lower() for k in ['youtube.com', 'youtu.be'])
-        if is_yt:
-            opts['extractor_args'] = {
-                'youtubetab': {'skip': ['webpage']},
-                'youtube': {
-                    'player_client': ['android', 'ios'],
-                    'player_skip': ['webpage', 'configs']
-                }
-            }
-
         info = None
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
@@ -1771,29 +1855,35 @@ class VideoDownloader:
         formats = (info or {}).get('formats', [])
 
         if not direct_url and formats:
-            # Look for progressive formats (has direct URL and audio+video)
             if mode == 'audio':
                 audios = [f for f in formats if f.get('url') and (f.get('vcodec') == 'none' or 'audio' in (f.get('format_note') or '').lower())]
                 if audios:
-                    direct_url = audios[-1]['url']
+                    audios_sorted = sorted(audios, key=lambda x: x.get('abr') or x.get('tbr') or 0, reverse=True)
+                    direct_url = audios_sorted[0]['url']
             else:
                 prog = [f for f in formats if f.get('url') and f.get('vcodec') != 'none' and f.get('acodec') != 'none' and f.get('protocol', '').startswith('http')]
-                if target_height and prog:
-                    match = [f for f in prog if (f.get('height') or 0) <= target_height]
-                    if match:
-                        direct_url = match[-1]['url']
-                if not direct_url and prog:
-                    direct_url = prog[-1]['url']
+                if prog:
+                    if target_height:
+                        matching = [f for f in prog if (f.get('height') or 0) <= target_height]
+                        if matching:
+                            matching_sorted = sorted(matching, key=lambda x: (x.get('height') or 0, x.get('tbr') or 0), reverse=True)
+                            direct_url = matching_sorted[0]['url']
+                    if not direct_url:
+                        prog_sorted = sorted(prog, key=lambda x: (x.get('height') or 0, x.get('tbr') or 0), reverse=True)
+                        direct_url = prog_sorted[0]['url']
                 
                 # If no progressive with separate audio codec metadata was found, pick best progressive video
                 if not direct_url:
                     any_vid = [f for f in formats if f.get('url') and f.get('vcodec') != 'none' and f.get('protocol', '').startswith('http')]
-                    if target_height and any_vid:
-                        match = [f for f in any_vid if (f.get('height') or 0) <= target_height]
-                        if match:
-                            direct_url = match[-1]['url']
-                    if not direct_url and any_vid:
-                        direct_url = any_vid[-1]['url']
+                    if any_vid:
+                        if target_height:
+                            matching = [f for f in any_vid if (f.get('height') or 0) <= target_height]
+                            if matching:
+                                matching_sorted = sorted(matching, key=lambda x: (x.get('height') or 0, x.get('tbr') or 0), reverse=True)
+                                direct_url = matching_sorted[0]['url']
+                        if not direct_url:
+                            any_sorted = sorted(any_vid, key=lambda x: (x.get('height') or 0, x.get('tbr') or 0), reverse=True)
+                            direct_url = any_sorted[0]['url']
 
         if not direct_url:
             requested = (info or {}).get('requested_formats') or []

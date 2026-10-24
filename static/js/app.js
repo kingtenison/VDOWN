@@ -11,27 +11,42 @@ document.addEventListener('DOMContentLoaded', () => {
     currentBatchMedia: null,
     selectedBatchItems: new Set(),
     activeBatchId: null,
+    activeBatchStatus: null,
     batchPollingInterval: null,
     selectedMode: 'video', // 'video', 'audio', 'raw'
     selectedQualityId: '1080',
     selectedLabel: '1080p Full HD',
     selectedSize: 'Estimating...',
     activeDownloadId: null,
+    activeDownloadStatus: null,
     activeSocket: null,
     pollingInterval: null,
     pendingDeleteItem: null,
     isCloud: false
   };
 
-  // DOM Elements - Search & Input
+  // DOM Elements - Search & Input (Redesigned & Separated)
+  const modeTabSingle = document.getElementById('mode-tab-single');
+  const modeTabBatch = document.getElementById('mode-tab-batch');
+  const panelSingleDownloader = document.getElementById('panel-single-downloader');
+  const panelBatchDownloader = document.getElementById('panel-batch-downloader');
   const urlInput = document.getElementById('video-url-input');
-  const batchUrlTextarea = document.getElementById('batch-url-textarea');
-  const batchToggleBtn = document.getElementById('batch-toggle-btn');
-  const batchToggleLabel = document.getElementById('batch-toggle-label');
   const pasteBtn = document.getElementById('paste-btn');
   const clearBtn = document.getElementById('clear-btn');
   const fetchBtn = document.getElementById('fetch-info-btn');
   const platformIcon = document.getElementById('current-platform-icon');
+  const platformLabel = document.getElementById('current-platform-label');
+
+  // Batch Editor Elements
+  const batchUrlTextarea = document.getElementById('batch-url-textarea');
+  const batchFetchBtn = document.getElementById('batch-fetch-info-btn');
+  const batchPasteBtn = document.getElementById('batch-paste-btn');
+  const batchSampleBtn = document.getElementById('batch-sample-btn');
+  const batchClearBtn = document.getElementById('batch-clear-btn');
+  const batchCountNum = document.getElementById('batch-count-num');
+  const batchUrlCountPill = document.getElementById('batch-url-count-pill');
+  const batchToggleBtn = document.getElementById('batch-toggle-btn');
+  const batchToggleLabel = document.getElementById('batch-toggle-label');
 
   // Batch Hub Elements
   const batchSection = document.getElementById('batch-section');
@@ -129,6 +144,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const libraryClearAllBtn = document.getElementById('library-clear-all-btn');
   const headerOpenFolderBtn = document.getElementById('header-open-folder-btn');
   const footerOpenFolderBtn = document.getElementById('footer-open-folder-btn');
+  const telemetryOpenFolderBtn = document.getElementById('telemetry-open-folder-btn');
+  const telemetryFolderCount = document.getElementById('telemetry-folder-count');
 
   // Modals
   const playerModal = document.getElementById('player-modal');
@@ -154,86 +171,271 @@ document.addEventListener('DOMContentLoaded', () => {
   function updatePlatformIcon(url) {
     const u = (url || '').toLowerCase();
     platformIcon.className = '';
+    let label = 'Auto-Detect';
     
     // Adult sites
     if (u.includes('xhamster')) {
       platformIcon.className = 'fas fa-shield-halved';
       platformIcon.style.color = '#f97316';
+      label = 'xHamster';
     } else if (u.includes('eporner')) {
       platformIcon.className = 'fas fa-circle-play';
       platformIcon.style.color = '#3b82f6';
+      label = 'EPorner';
     } else if (u.includes('tnaflix')) {
       platformIcon.className = 'fas fa-film';
       platformIcon.style.color = '#ef4444';
+      label = 'TnaFlix';
     } else if (u.includes('viralxxxporn')) {
       platformIcon.className = 'fas fa-fire';
       platformIcon.style.color = '#f43f5e';
+      label = 'ViralXXX';
     } else if (u.includes('pimpbunny')) {
       platformIcon.className = 'fas fa-rabbit';
       platformIcon.style.color = '#d946ef';
+      label = 'PimpBunny';
     } else if (u.includes('pornhub')) {
       platformIcon.className = 'fas fa-circle-play';
       platformIcon.style.color = '#f59e0b';
+      label = 'Pornhub';
     } else if (u.includes('xvideos')) {
       platformIcon.className = 'fas fa-play';
       platformIcon.style.color = '#ef4444';
+      label = 'XVideos';
     } else if (u.includes('xnxx')) {
       platformIcon.className = 'fas fa-play';
       platformIcon.style.color = '#3b82f6';
+      label = 'XNXX';
     } else if (u.includes('spankbang')) {
       platformIcon.className = 'fas fa-bolt';
       platformIcon.style.color = '#f97316';
+      label = 'SpankBang';
     }
     // Music sites
     else if (u.includes('soundcloud')) {
       platformIcon.className = 'fab fa-soundcloud';
       platformIcon.style.color = '#f97316';
+      label = 'SoundCloud';
     } else if (u.includes('bandcamp')) {
       platformIcon.className = 'fab fa-bandcamp';
       platformIcon.style.color = '#06b6d4';
+      label = 'Bandcamp';
     } else if (u.includes('mixcloud')) {
       platformIcon.className = 'fab fa-mixcloud';
       platformIcon.style.color = '#6366f1';
+      label = 'Mixcloud';
     } else if (u.includes('audiomack')) {
       platformIcon.className = 'fas fa-music';
       platformIcon.style.color = '#f59e0b';
+      label = 'Audiomack';
     } else if (u.includes('freesound')) {
       platformIcon.className = 'fas fa-wave-square';
       platformIcon.style.color = '#0ea5e9';
+      label = 'Freesound';
     }
     // Mainstream video & social
     else if (u.includes('youtube') || u.includes('youtu.be')) {
       platformIcon.className = 'fab fa-youtube';
       platformIcon.style.color = '#ef4444';
+      label = 'YouTube';
     } else if (u.includes('tiktok')) {
       platformIcon.className = 'fab fa-tiktok';
       platformIcon.style.color = '#06b6d4';
+      label = 'TikTok';
     } else if (u.includes('instagram')) {
       platformIcon.className = 'fab fa-instagram';
       platformIcon.style.color = '#ec4899';
+      label = 'Instagram';
     } else if (u.includes('twitter') || u.includes('x.com')) {
       platformIcon.className = 'fab fa-x-twitter';
-      platformIcon.style.color = '#f1f5f9';
+      platformIcon.style.color = '#050F2A';
+      label = 'X / Twitter';
     } else if (u.includes('facebook') || u.includes('fb.watch')) {
       platformIcon.className = 'fab fa-facebook';
       platformIcon.style.color = '#3b82f6';
+      label = 'Facebook';
     } else if (u.includes('reddit')) {
       platformIcon.className = 'fab fa-reddit';
       platformIcon.style.color = '#f97316';
+      label = 'Reddit';
     } else if (u.includes('vimeo')) {
       platformIcon.className = 'fab fa-vimeo-v';
       platformIcon.style.color = '#0ea5e9';
+      label = 'Vimeo';
     } else if (u.includes('twitch')) {
       platformIcon.className = 'fab fa-twitch';
       platformIcon.style.color = '#a855f7';
+      label = 'Twitch';
     } else {
       platformIcon.className = 'fas fa-link';
-      platformIcon.style.color = '';
+      platformIcon.style.color = '#7BBBFF';
+      label = u ? 'Web Link' : 'Auto-Detect';
+    }
+
+    const iconWrap = document.getElementById('platform-icon-wrapper');
+    if (iconWrap) {
+      if (u.includes('youtube') || u.includes('youtu.be')) {
+        iconWrap.style.background = 'rgba(239, 68, 68, 0.12)';
+        iconWrap.style.borderColor = 'rgba(239, 68, 68, 0.35)';
+      } else if (u.includes('soundcloud') || u.includes('reddit')) {
+        iconWrap.style.background = 'rgba(249, 115, 22, 0.12)';
+        iconWrap.style.borderColor = 'rgba(249, 115, 22, 0.35)';
+      } else if (u.includes('vimeo') || u.includes('freesound')) {
+        iconWrap.style.background = 'rgba(14, 165, 233, 0.12)';
+        iconWrap.style.borderColor = 'rgba(14, 165, 233, 0.35)';
+      } else if (u.includes('tiktok') || u.includes('bandcamp')) {
+        iconWrap.style.background = 'rgba(6, 182, 212, 0.12)';
+        iconWrap.style.borderColor = 'rgba(6, 182, 212, 0.35)';
+      } else if (u.includes('instagram')) {
+        iconWrap.style.background = 'rgba(236, 72, 153, 0.12)';
+        iconWrap.style.borderColor = 'rgba(236, 72, 153, 0.35)';
+      } else if (u.includes('twitch') || u.includes('pimpbunny')) {
+        iconWrap.style.background = 'rgba(217, 70, 239, 0.12)';
+        iconWrap.style.borderColor = 'rgba(217, 70, 239, 0.35)';
+      } else {
+        iconWrap.style.background = '#F4F8FE';
+        iconWrap.style.borderColor = 'rgba(123, 187, 255, 0.3)';
+      }
+    }
+
+    if (platformLabel) {
+      if (u && label !== 'Auto-Detect' && label !== 'Web Link') {
+        platformLabel.textContent = label;
+        platformLabel.style.display = 'inline-flex';
+      } else {
+        platformLabel.textContent = '';
+        platformLabel.style.display = 'none';
+      }
     }
   }
 
   // ==========================================================================
-  // URL Input Events
+  // Mode Switching & Batch Helpers (Clean Separation)
+  // ==========================================================================
+  function updateBatchUrlCount() {
+    if (!batchUrlTextarea) return;
+    const lines = batchUrlTextarea.value.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    const count = lines.length;
+    if (batchCountNum) batchCountNum.textContent = count.toString();
+    if (batchUrlCountPill) {
+      if (count > 0) {
+        batchUrlCountPill.classList.add('has-urls');
+      } else {
+        batchUrlCountPill.classList.remove('has-urls');
+      }
+    }
+  }
+
+  function updateLiveBadges() {
+    const badgeSingle = document.getElementById('badge-single-live');
+    const badgeBatch = document.getElementById('badge-batch-live');
+    
+    if (badgeSingle) {
+      if (state.activeDownloadStatus === 'downloading') {
+        badgeSingle.style.display = 'inline-flex';
+        const txt = badgeSingle.querySelector('.badge-text');
+        if (txt) txt.textContent = 'Active';
+      } else {
+        badgeSingle.style.display = 'none';
+      }
+    }
+
+    if (badgeBatch) {
+      if (state.activeBatchStatus === 'downloading') {
+        badgeBatch.style.display = 'inline-flex';
+        const txt = badgeBatch.querySelector('.badge-text');
+        if (txt) txt.textContent = 'In Queue';
+      } else {
+        badgeBatch.style.display = 'none';
+      }
+    }
+  }
+
+  function setBatchMode(enabled) {
+    state.isBatchMode = !!enabled;
+    if (enabled) {
+      if (modeTabBatch) {
+        modeTabBatch.classList.add('active');
+        modeTabBatch.setAttribute('aria-selected', 'true');
+      }
+      if (modeTabSingle) {
+        modeTabSingle.classList.remove('active');
+        modeTabSingle.setAttribute('aria-selected', 'false');
+      }
+      if (panelSingleDownloader) panelSingleDownloader.style.display = 'none';
+      if (panelBatchDownloader) panelBatchDownloader.style.display = 'block';
+
+      // Clean separation of results workspaces - ALWAYS hide single results in batch mode
+      if (resultSection) {
+        resultSection.style.display = 'none';
+      }
+      // Show batch section if batch collection exists
+      if (batchSection) {
+        batchSection.style.display = state.currentBatchMedia ? 'block' : 'none';
+      }
+
+      // Clean separation of active progress sections
+      if (activeDownloadSection) {
+        activeDownloadSection.style.display = 'none';
+      }
+      if (activeBatchSection) {
+        activeBatchSection.style.display = (state.activeBatchId || state.activeBatchStatus === 'downloading') ? 'block' : 'none';
+      }
+
+      updateBatchUrlCount();
+      if (batchUrlTextarea) {
+        batchUrlTextarea.focus();
+      }
+    } else {
+      if (modeTabSingle) {
+        modeTabSingle.classList.add('active');
+        modeTabSingle.setAttribute('aria-selected', 'true');
+      }
+      if (modeTabBatch) {
+        modeTabBatch.classList.remove('active');
+        modeTabBatch.setAttribute('aria-selected', 'false');
+      }
+      if (panelBatchDownloader) panelBatchDownloader.style.display = 'none';
+      if (panelSingleDownloader) panelSingleDownloader.style.display = 'block';
+
+      // Clean separation of results workspaces - ALWAYS hide batch results in single mode
+      if (batchSection) {
+        batchSection.style.display = 'none';
+      }
+      // Show single result workspace if available
+      if (resultSection) {
+        resultSection.style.display = state.currentMedia ? 'block' : 'none';
+      }
+
+      // Clean separation of active progress sections
+      if (activeBatchSection) {
+        activeBatchSection.style.display = 'none';
+      }
+      if (activeDownloadSection) {
+        activeDownloadSection.style.display = (state.activeDownloadId || state.activeDownloadStatus === 'downloading') ? 'block' : 'none';
+      }
+
+      if (urlInput) {
+        urlInput.focus();
+        clearBtn.style.display = urlInput.value.trim() ? 'inline-flex' : 'none';
+        updatePlatformIcon(urlInput.value.trim());
+      }
+    }
+    updateLiveBadges();
+  }
+
+  if (modeTabSingle) {
+    modeTabSingle.addEventListener('click', () => setBatchMode(false));
+  }
+  if (modeTabBatch) {
+    modeTabBatch.addEventListener('click', () => setBatchMode(true));
+  }
+  if (batchToggleBtn) {
+    batchToggleBtn.addEventListener('click', () => setBatchMode(!state.isBatchMode));
+  }
+
+  // ==========================================================================
+  // Single Search Bar Events
   // ==========================================================================
   urlInput.addEventListener('input', () => {
     const val = urlInput.value.trim();
@@ -243,60 +445,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
   urlInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
-      fetchVideoInfo();
+      fetchVideoInfo(null, 'single');
     }
   });
 
-  if (batchUrlTextarea) {
-    batchUrlTextarea.addEventListener('input', () => {
-      const val = batchUrlTextarea.value.trim();
-      clearBtn.style.display = val ? 'inline-flex' : 'none';
-    });
-  }
-
-  if (batchToggleBtn) {
-    batchToggleBtn.addEventListener('click', () => {
-      setBatchMode(!state.isBatchMode);
-    });
-  }
-
-  function setBatchMode(enabled) {
-    state.isBatchMode = enabled;
-    if (enabled) {
-      batchToggleBtn.classList.add('active');
-      if (batchToggleLabel) batchToggleLabel.textContent = 'Single Mode';
-      if (batchUrlTextarea) batchUrlTextarea.style.display = 'block';
-      urlInput.style.display = 'none';
-      if (urlInput.value.trim() && batchUrlTextarea && !batchUrlTextarea.value.trim()) {
-        batchUrlTextarea.value = urlInput.value.trim();
-      }
-      if (batchUrlTextarea) {
-        batchUrlTextarea.focus();
-        clearBtn.style.display = batchUrlTextarea.value.trim() ? 'inline-flex' : 'none';
-      }
-      platformIcon.className = 'fas fa-layer-group';
-      platformIcon.style.color = '#7BBBFF';
-    } else {
-      batchToggleBtn.classList.remove('active');
-      if (batchToggleLabel) batchToggleLabel.textContent = 'Batch';
-      if (batchUrlTextarea) batchUrlTextarea.style.display = 'none';
-      urlInput.style.display = 'block';
-      if (batchUrlTextarea && batchUrlTextarea.value.trim() && !urlInput.value.trim()) {
-        urlInput.value = batchUrlTextarea.value.split('\n')[0].trim();
-      }
-      urlInput.focus();
-      clearBtn.style.display = urlInput.value.trim() ? 'inline-flex' : 'none';
-      updatePlatformIcon(urlInput.value.trim());
-    }
-  }
-
-  // Auto-detect pasting multiple URLs into single input
+  // Auto-detect pasting multiple URLs into single search input
   urlInput.addEventListener('paste', () => {
     setTimeout(() => {
       const val = urlInput.value;
       if (val.includes('\n') || val.includes('\r')) {
         setBatchMode(true);
-        if (batchUrlTextarea) batchUrlTextarea.value = val;
+        if (batchUrlTextarea) {
+          batchUrlTextarea.value = val;
+          updateBatchUrlCount();
+        }
+        urlInput.value = '';
+        showToast('Multiple URLs detected — switched to Batch Downloader', 'info');
       }
     }, 50);
   });
@@ -312,57 +476,153 @@ document.addEventListener('DOMContentLoaded', () => {
       if (text) {
         if (text.includes('\n') || text.includes('\r')) {
           setBatchMode(true);
-          if (batchUrlTextarea) batchUrlTextarea.value = text.trim();
-          clearBtn.style.display = 'inline-flex';
-        } else {
-          if (state.isBatchMode && batchUrlTextarea) {
+          if (batchUrlTextarea) {
             batchUrlTextarea.value = text.trim();
-          } else {
-            urlInput.value = text.trim();
-            updatePlatformIcon(text);
+            updateBatchUrlCount();
           }
+          showToast('Multiple URLs detected — switched to Batch Downloader', 'info');
+          fetchVideoInfo(null, 'batch');
+        } else {
+          urlInput.value = text.trim();
+          updatePlatformIcon(text);
           clearBtn.style.display = 'inline-flex';
+          showToast('Link pasted', 'info');
+          fetchVideoInfo(null, 'single');
         }
-        showToast('Link pasted', 'info');
-        fetchVideoInfo();
       }
     } catch (err) {
       const fallback = prompt('Paste video or audio URL here:');
       if (fallback) {
         if (fallback.includes('\n') || fallback.includes('\r')) {
           setBatchMode(true);
-          if (batchUrlTextarea) batchUrlTextarea.value = fallback.trim();
+          if (batchUrlTextarea) {
+            batchUrlTextarea.value = fallback.trim();
+            updateBatchUrlCount();
+          }
+          fetchVideoInfo(null, 'batch');
         } else {
           urlInput.value = fallback.trim();
           updatePlatformIcon(fallback);
+          clearBtn.style.display = 'inline-flex';
+          fetchVideoInfo(null, 'single');
         }
-        clearBtn.style.display = 'inline-flex';
-        fetchVideoInfo();
       }
     }
   });
 
   clearBtn.addEventListener('click', () => {
     urlInput.value = '';
-    if (batchUrlTextarea) batchUrlTextarea.value = '';
     clearBtn.style.display = 'none';
     updatePlatformIcon('');
-    if (state.isBatchMode && batchUrlTextarea) {
-      batchUrlTextarea.focus();
-    } else {
-      urlInput.focus();
-    }
+    state.currentMedia = null;
+    if (resultSection) resultSection.style.display = 'none';
+    urlInput.focus();
   });
 
-  // Demo Sample Pills & Dropdown
+  // ==========================================================================
+  // Batch Downloader Panel Events
+  // ==========================================================================
+  if (batchUrlTextarea) {
+    batchUrlTextarea.addEventListener('input', () => {
+      updateBatchUrlCount();
+    });
+
+    batchUrlTextarea.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        fetchVideoInfo(null, 'batch');
+      }
+    });
+  }
+
+  if (batchPasteBtn) {
+    batchPasteBtn.addEventListener('click', async () => {
+      try {
+        let text = '';
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          text = await navigator.clipboard.readText();
+        } else {
+          text = prompt('Paste URLs (one per line):');
+        }
+        if (text && batchUrlTextarea) {
+          const current = batchUrlTextarea.value.trim();
+          batchUrlTextarea.value = current ? `${current}\n${text.trim()}` : text.trim();
+          updateBatchUrlCount();
+          showToast('URLs pasted into batch editor', 'info');
+          batchUrlTextarea.focus();
+        }
+      } catch (err) {
+        const fallback = prompt('Paste URLs (one per line):');
+        if (fallback && batchUrlTextarea) {
+          const current = batchUrlTextarea.value.trim();
+          batchUrlTextarea.value = current ? `${current}\n${fallback.trim()}` : fallback.trim();
+          updateBatchUrlCount();
+          batchUrlTextarea.focus();
+        }
+      }
+    });
+  }
+
+  if (batchSampleBtn) {
+    batchSampleBtn.addEventListener('click', () => {
+      if (!batchUrlTextarea) return;
+      const sampleBatch = [
+        'https://www.youtube.com/watch?v=aqz-KE-bpKQ',
+        'https://soundcloud.com/alanwalker/faded',
+        'https://vimeo.com/76979871'
+      ].join('\n');
+      batchUrlTextarea.value = sampleBatch;
+      updateBatchUrlCount();
+      showToast('Loaded 3 sample streams for batch download', 'info');
+      batchUrlTextarea.focus();
+    });
+  }
+
+  if (batchClearBtn) {
+    batchClearBtn.addEventListener('click', () => {
+      if (batchUrlTextarea) {
+        batchUrlTextarea.value = '';
+        updateBatchUrlCount();
+        batchUrlTextarea.focus();
+      }
+      state.currentBatchMedia = null;
+      state.selectedBatchItems.clear();
+      if (batchSection) batchSection.style.display = 'none';
+      showToast('Batch URLs cleared', 'info');
+    });
+  }
+
+  if (batchFetchBtn) {
+    batchFetchBtn.addEventListener('click', () => {
+      fetchVideoInfo(null, 'batch');
+    });
+  }
+
+  // Demo Sample Pills & Dropdown (Strict Mode Preservation)
+  function handleDemoItemClick(demoUrl, isBatchItem) {
+    if (isBatchItem) {
+      setBatchMode(true);
+      if (batchUrlTextarea) {
+        batchUrlTextarea.value = demoUrl;
+        updateBatchUrlCount();
+      }
+      fetchVideoInfo(demoUrl, 'batch');
+    } else {
+      setBatchMode(false);
+      if (urlInput) {
+        urlInput.value = demoUrl;
+        clearBtn.style.display = 'inline-flex';
+        updatePlatformIcon(demoUrl);
+      }
+      fetchVideoInfo(demoUrl, 'single');
+    }
+  }
+
   document.querySelectorAll('.demo-pill[data-url], .sample-chip[data-url]').forEach(pill => {
     pill.addEventListener('click', () => {
       const demoUrl = pill.dataset.url;
-      if (state.isBatchMode) setBatchMode(false);
-      urlInput.value = demoUrl;
-      clearBtn.style.display = 'inline-flex';
-      updatePlatformIcon(demoUrl);
-      fetchVideoInfo();
+      const isBatch = pill.dataset.type === 'batch' || demoUrl.includes('playlist') || demoUrl.includes('onlyfans-creators');
+      handleDemoItemClick(demoUrl, isBatch);
     });
   });
 
@@ -377,12 +637,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.demo-menu-item').forEach(item => {
       item.addEventListener('click', () => {
         const demoUrl = item.dataset.url;
-        if (state.isBatchMode) setBatchMode(false);
-        urlInput.value = demoUrl;
-        clearBtn.style.display = 'inline-flex';
-        updatePlatformIcon(demoUrl);
+        const isBatch = item.dataset.type === 'batch' || demoUrl.includes('playlist') || demoUrl.includes('onlyfans-creators');
         demoDropdownMenu.classList.remove('show');
-        fetchVideoInfo();
+        handleDemoItemClick(demoUrl, isBatch);
       });
     });
 
@@ -410,14 +667,18 @@ document.addEventListener('DOMContentLoaded', () => {
   // ==========================================================================
   // Fetch / Extract Video Metadata
   // ==========================================================================
-  fetchBtn.addEventListener('click', fetchVideoInfo);
+  fetchBtn.addEventListener('click', () => fetchVideoInfo(null, 'single'));
 
-  async function fetchVideoInfo() {
-    const rawVal = (state.isBatchMode && batchUrlTextarea) ? batchUrlTextarea.value : urlInput.value;
-    const url = (rawVal || '').trim();
+  async function fetchVideoInfo(customUrl, explicitMode) {
+    const isBatch = (explicitMode !== undefined) ? (explicitMode === 'batch') : state.isBatchMode;
+    let url = customUrl;
     if (!url) {
-      showError('Empty URL', state.isBatchMode ? 'Please enter or paste one or more URLs.' : 'Please enter or paste a valid video URL.');
-      if (state.isBatchMode && batchUrlTextarea) batchUrlTextarea.focus();
+      const rawVal = isBatch && batchUrlTextarea ? batchUrlTextarea.value : urlInput.value;
+      url = (rawVal || '').trim();
+    }
+    if (!url) {
+      showError('Empty URL', isBatch ? 'Please enter or paste one or more URLs.' : 'Please enter or paste a valid video URL.');
+      if (isBatch && batchUrlTextarea) batchUrlTextarea.focus();
       else urlInput.focus();
       return;
     }
@@ -429,7 +690,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await fetch('/api/extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url })
+        body: JSON.stringify({ url, is_batch: isBatch })
       });
 
       const json = await res.json();
@@ -437,31 +698,72 @@ document.addEventListener('DOMContentLoaded', () => {
         throw new Error(json.detail || 'Failed to extract video information.');
       }
 
-      if (json.data && json.data.is_playlist) {
-        state.currentBatchMedia = json.data;
-        resultSection.style.display = 'none';
-        renderBatchCollection(json.data);
-        batchSection.style.display = 'block';
-        batchSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        showToast(`Loaded collection with ${json.data.playlist_count} videos!`, 'info');
-      } else {
-        if (batchSection) batchSection.style.display = 'none';
-        state.currentMedia = json.data;
-        renderMediaDetails(json.data);
-        renderQualitySelectors(json.data);
-
-        // Auto-switch to audio tab if no video streams exist (e.g. music/audio sites)
-        if ((!json.data.video_qualities || json.data.video_qualities.length === 0) && (json.data.audio_options && json.data.audio_options.length > 0)) {
-          const audioTabBtn = document.getElementById('tab-btn-audio');
-          if (audioTabBtn) audioTabBtn.click();
-        } else {
-          const videoTabBtn = document.getElementById('tab-btn-video');
-          if (videoTabBtn) videoTabBtn.click();
+      if (isBatch) {
+        // We are in Batch Mode
+        // If single video was returned, wrap it into a 1-item batch collection
+        if (!json.data.is_playlist) {
+          json.data = {
+            is_playlist: true,
+            url: json.data.webpage_url || json.data.url,
+            title: json.data.title || 'Batch Media',
+            thumbnail: json.data.thumbnail,
+            uploader: json.data.uploader || 'Batch Downloader',
+            playlist_count: 1,
+            entries: [{
+              url: json.data.webpage_url || json.data.url,
+              title: json.data.title || 'Video 1',
+              thumbnail: json.data.thumbnail,
+              duration_str: json.data.duration_str || '--:--',
+              platform: json.data.platform
+            }],
+            platform: json.data.platform || { name: 'Batch Stream', icon: 'fas fa-layer-group', color: '#FF6600' }
+          };
         }
+        state.currentBatchMedia = json.data;
+        if (resultSection) resultSection.style.display = 'none';
+        renderBatchCollection(json.data);
+        if (state.isBatchMode) {
+          if (batchSection) batchSection.style.display = 'block';
+          batchSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        showToast(`Loaded collection with ${json.data.playlist_count || (json.data.entries ? json.data.entries.length : 1)} stream(s)!`, 'info');
+      } else {
+        // We are in Single Stream mode
+        if (json.data && json.data.is_playlist) {
+          // Playlist detected! Switch cleanly to Batch mode!
+          setBatchMode(true);
+          if (batchUrlTextarea) {
+            batchUrlTextarea.value = url;
+            updateBatchUrlCount();
+          }
+          state.currentBatchMedia = json.data;
+          if (resultSection) resultSection.style.display = 'none';
+          renderBatchCollection(json.data);
+          if (batchSection) batchSection.style.display = 'block';
+          batchSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          showToast(`Playlist detected (${json.data.playlist_count} videos) — switched to Batch Downloader!`, 'info');
+        } else {
+          // Normal single video
+          if (batchSection) batchSection.style.display = 'none';
+          state.currentMedia = json.data;
+          renderMediaDetails(json.data);
+          renderQualitySelectors(json.data);
 
-        resultSection.style.display = 'block';
-        resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        showToast('Media inspected & formats ready', 'info');
+          // Auto-switch to audio tab if no video streams exist (e.g. music/audio sites)
+          if ((!json.data.video_qualities || json.data.video_qualities.length === 0) && (json.data.audio_options && json.data.audio_options.length > 0)) {
+            const audioTabBtn = document.getElementById('tab-btn-audio');
+            if (audioTabBtn) audioTabBtn.click();
+          } else {
+            const videoTabBtn = document.getElementById('tab-btn-video');
+            if (videoTabBtn) videoTabBtn.click();
+          }
+
+          if (!state.isBatchMode) {
+            if (resultSection) resultSection.style.display = 'block';
+            resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+          showToast('Media inspected & formats ready', 'info');
+        }
       }
     } catch (err) {
       console.error(err);
@@ -472,17 +774,20 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function setFetchLoading(isLoading) {
-    const btnText = fetchBtn.querySelector('.btn-text');
-    const btnLoader = fetchBtn.querySelector('.btn-loader');
-    if (isLoading) {
-      btnText.style.display = 'none';
-      btnLoader.style.display = 'inline-flex';
-      fetchBtn.disabled = true;
-    } else {
-      btnText.style.display = 'inline-flex';
-      btnLoader.style.display = 'none';
-      fetchBtn.disabled = false;
-    }
+    [fetchBtn, batchFetchBtn].forEach(btn => {
+      if (!btn) return;
+      const btnText = btn.querySelector('.btn-text');
+      const btnLoader = btn.querySelector('.btn-loader');
+      if (isLoading) {
+        if (btnText) btnText.style.display = 'none';
+        if (btnLoader) btnLoader.style.display = 'inline-flex';
+        btn.disabled = true;
+      } else {
+        if (btnText) btnText.style.display = 'inline-flex';
+        if (btnLoader) btnLoader.style.display = 'none';
+        btn.disabled = false;
+      }
+    });
   }
 
   function escapeHtml(str) {
@@ -683,6 +988,8 @@ document.addEventListener('DOMContentLoaded', () => {
             batchStatusBadge.textContent = 'Completed';
             batchStatusBadge.className = 'badge-status-pill finished';
           }
+          state.activeBatchStatus = 'finished';
+          updateLiveBadges();
           showToast(`Initiated ${successCount} browser downloads`, 'success');
         } catch (e) {
           showToast(e.message, 'error');
@@ -729,7 +1036,17 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function initActiveBatchUI(totalCount) {
-    if (activeBatchSection) activeBatchSection.style.display = 'block';
+    state.activeBatchStatus = 'downloading';
+    updateLiveBadges();
+    if (activeDownloadSection) activeDownloadSection.style.display = 'none';
+    if (state.isBatchMode) {
+      if (activeBatchSection) {
+        activeBatchSection.style.display = 'block';
+        activeBatchSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    } else {
+      if (activeBatchSection) activeBatchSection.style.display = 'none';
+    }
     if (batchStatusBadge) {
       batchStatusBadge.textContent = 'Batch Downloading';
       batchStatusBadge.className = 'badge-status-pill';
@@ -745,7 +1062,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (batchEtaVal) batchEtaVal.textContent = '--:--';
     if (batchSuccessVal) batchSuccessVal.textContent = '0';
     if (batchFailedVal) batchFailedVal.textContent = '0';
-    if (activeBatchSection) activeBatchSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
   function trackBatchProgress(batchId) {
@@ -757,6 +1073,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const batch = await res.json();
         updateBatchProgressUI(batch);
         if (batch.status === 'finished') {
+          state.activeBatchStatus = 'finished';
+          updateLiveBadges();
           clearInterval(state.batchPollingInterval);
           loadHistory();
           showToast(`Batch completed: ${batch.completed_items} files downloaded!`, 'success');
@@ -791,6 +1109,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (batch.eta_str && batchEtaVal) batchEtaVal.textContent = batch.eta_str;
 
     if (batch.status === 'finished') {
+      state.activeBatchStatus = 'finished';
+      updateLiveBadges();
       if (batchStatusBadge) {
         batchStatusBadge.textContent = 'Completed';
         batchStatusBadge.className = 'badge-status-pill finished';
@@ -1011,6 +1331,19 @@ document.addEventListener('DOMContentLoaded', () => {
       [videoTab, audioTab, rawTab].forEach(t => {
         if (t) t.style.display = (t.id === targetTabId) ? 'block' : 'none';
       });
+
+      // Synchronize selection state with the newly active tab
+      if (targetTabId === 'tab-audio') {
+        const activeCard = audioTab.querySelector('.quality-card.selected') || audioTab.querySelector('.quality-card');
+        if (activeCard) {
+          activeCard.click();
+        }
+      } else if (targetTabId === 'tab-video') {
+        const activeCard = videoTab.querySelector('.quality-card.selected') || videoTab.querySelector('.quality-card');
+        if (activeCard) {
+          activeCard.click();
+        }
+      }
     });
   });
 
@@ -1025,8 +1358,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const payload = {
       url: state.currentMedia.url,
-      mode: state.selectedMode,
-      quality_id: state.selectedQualityId.toString(),
+      mode: state.selectedMode || 'video',
+      quality_id: (state.selectedQualityId || 'best').toString(),
       container: prefContainer.value,
       embed_subtitles: prefSubtitles.checked,
       custom_filename: prefCustomName.value.trim() || null,
@@ -1061,6 +1394,8 @@ document.addEventListener('DOMContentLoaded', () => {
         initActiveDownloadUI(payload);
         progressStatusBadge.textContent = 'Transferred to Browser';
         progressStatusBadge.className = 'badge-status finished';
+        state.activeDownloadStatus = 'finished';
+        updateLiveBadges();
         progressMeterFill.style.width = '100%';
         metricPercent.textContent = '100%';
         progressStage.textContent = `Streaming '${json.filename}' directly to your browser download manager...`;
@@ -1124,7 +1459,17 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   function initActiveDownloadUI(payload) {
-    activeDownloadSection.style.display = 'block';
+    state.activeDownloadStatus = 'downloading';
+    updateLiveBadges();
+    if (activeBatchSection) activeBatchSection.style.display = 'none';
+    if (!state.isBatchMode) {
+      if (activeDownloadSection) {
+        activeDownloadSection.style.display = 'block';
+        activeDownloadSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    } else {
+      if (activeDownloadSection) activeDownloadSection.style.display = 'none';
+    }
     progressThumb.src = state.currentMedia.thumbnail || '';
     progressTitle.textContent = state.currentMedia.title || 'Downloading...';
     progressQualityBadge.textContent = state.selectedLabel;
@@ -1142,7 +1487,6 @@ document.addEventListener('DOMContentLoaded', () => {
     downloadSuccessActions.style.display = 'none';
     actionOpenFileBtn.style.display = 'inline-flex';
     actionShowFolderBtn.style.display = 'inline-flex';
-    activeDownloadSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
   // ==========================================================================
@@ -1231,12 +1575,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Status changes
     if (task.status === 'downloading') {
+      state.activeDownloadStatus = 'downloading';
+      updateLiveBadges();
       progressStatusBadge.textContent = 'Downloading';
       progressStatusBadge.className = 'badge-status';
     } else if (task.status === 'processing') {
+      state.activeDownloadStatus = 'downloading';
+      updateLiveBadges();
       progressStatusBadge.textContent = 'Processing (FFmpeg)';
       progressStatusBadge.className = 'badge-status';
     } else if (task.status === 'finished') {
+      state.activeDownloadStatus = 'finished';
+      updateLiveBadges();
       progressStatusBadge.textContent = 'Completed';
       progressStatusBadge.className = 'badge-status finished';
       progressMeterFill.style.width = '100%';
@@ -1255,6 +1605,8 @@ document.addEventListener('DOMContentLoaded', () => {
       showToast('Download completed successfully', 'success');
       loadHistory();
     } else if (task.status === 'error') {
+      state.activeDownloadStatus = 'error';
+      updateLiveBadges();
       progressStatusBadge.textContent = 'Failed';
       progressStatusBadge.className = 'badge-status error';
       progressStage.textContent = `Error: ${task.error || 'Download failed'}`;
@@ -1320,6 +1672,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (libraryOpenFolderBtn) libraryOpenFolderBtn.addEventListener('click', handleOpenDownloadsFolder);
   if (headerOpenFolderBtn) headerOpenFolderBtn.addEventListener('click', handleOpenDownloadsFolder);
   if (footerOpenFolderBtn) footerOpenFolderBtn.addEventListener('click', handleOpenDownloadsFolder);
+  if (telemetryOpenFolderBtn) telemetryOpenFolderBtn.addEventListener('click', handleOpenDownloadsFolder);
 
   // ==========================================================================
   // Media Player Modal
@@ -1384,6 +1737,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderHistory(items) {
     libraryCountBadge.textContent = `${items.length} item${items.length === 1 ? '' : 's'}`;
     headerHistoryCount.textContent = items.length;
+    if (telemetryFolderCount) telemetryFolderCount.textContent = `${items.length} file${items.length === 1 ? '' : 's'}`;
 
     if (items.length === 0) {
       historyContainer.innerHTML = `
@@ -1773,8 +2127,45 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // FAQ Accordion Interaction (AEO and Accessibility)
+  function initFaqAccordion() {
+    const faqItems = document.querySelectorAll('.faq-item');
+    faqItems.forEach(item => {
+      const trigger = item.querySelector('.faq-trigger');
+      const body = item.querySelector('.faq-body');
+      if (!trigger || !body) return;
+
+      trigger.addEventListener('click', () => {
+        const isOpen = item.classList.contains('active');
+
+        // Close other items for a focused accordion experience
+        faqItems.forEach(otherItem => {
+          if (otherItem !== item) {
+            otherItem.classList.remove('active');
+            const otherTrigger = otherItem.querySelector('.faq-trigger');
+            const otherBody = otherItem.querySelector('.faq-body');
+            if (otherTrigger) otherTrigger.setAttribute('aria-expanded', 'false');
+            if (otherBody) otherBody.hidden = true;
+          }
+        });
+
+        if (isOpen) {
+          item.classList.remove('active');
+          trigger.setAttribute('aria-expanded', 'false');
+          body.hidden = true;
+        } else {
+          item.classList.add('active');
+          trigger.setAttribute('aria-expanded', 'true');
+          body.hidden = false;
+        }
+      });
+    });
+  }
+
   // Initial Load
   checkEnvironmentConfig();
   loadHistory();
   loadSupportedPlatforms();
+  initFaqAccordion();
 });
+

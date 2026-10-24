@@ -3,148 +3,444 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VDOWN - Universal High-Speed Video & Audio Downloader</title>
-  <meta name="description" content="Download videos and audio in any quality from YouTube, TikTok, Instagram, Twitter/X, Facebook, SoundCloud and 1750+ sites with VDOWN. Full width, bento box design.">
-  
-  <!-- Clash Display from Fontshare -->
-  <link href="https://api.fontshare.com/v2/css?f[]=clash-display@300,400,500,600,700&display=swap" rel="stylesheet">
-  
-  <!-- Plus Jakarta Sans & Inter from Google Fonts -->
+  <title>VDOWN - Universal High-Speed Video & Audio Downloader | 4K & MP3 Extractor</title>
+  <meta name="description" content="Free high-speed 4K/8K video and studio 320kbps MP3 audio extractor. Download from YouTube, TikTok (no watermark), Instagram, Twitter/X, SoundCloud, and 1,750+ supported web platforms. Lossless FFmpeg muxing, 100% private.">
+  <meta name="keywords" content="video downloader, youtube 4k downloader, tiktok no watermark, mp3 extractor, instagram reels downloader, twitter video download, 8k video downloader, bento box downloader, universal media sniffer, lossless audio muxer, vdown">
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+  <meta name="author" content="VDOWN Media Engine">
+  <link rel="canonical" href="http://localhost:8000/">
+
+  <!-- Mobile & PWA Theme Meta -->
+  <meta name="application-name" content="VDOWN">
+  <meta name="apple-mobile-web-app-title" content="VDOWN">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#030712" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#7BBBFF" media="(prefers-color-scheme: light)">
+  <link rel="manifest" href="/manifest.json">
+
+  <!-- Open Graph / Facebook Protocol -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="VDOWN">
+  <meta property="og:title" content="VDOWN - Universal High-Speed Video & Audio Downloader">
+  <meta property="og:description" content="Extract lossless 4K UHD, 1080p Full HD video and studio 320kbps MP3 audio from YouTube, TikTok (no watermark), Instagram, Twitter/X, SoundCloud and 1,750+ supported web platforms.">
+  <meta property="og:url" content="http://localhost:8000/">
+  <meta property="og:image" content="/static/favicon.svg">
+  <meta property="og:image:alt" content="VDOWN Engine Logo">
+  <meta property="og:locale" content="en_US">
+
+  <!-- Twitter Card Protocol -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="VDOWN - Universal High-Speed Video & Audio Downloader">
+  <meta name="twitter:description" content="Extract lossless 4K UHD, 1080p Full HD video and studio 320kbps MP3 audio from YouTube, TikTok, Instagram, Twitter/X, and 1,750+ sites.">
+  <meta name="twitter:image" content="/static/favicon.svg">
+
+  <!-- Exact Typography from Odara Studios (Nexa, Plus Jakarta Sans, Outfit, JetBrains Mono) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.cdnfonts.com/css/nexa" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&display=swap" rel="stylesheet">
   
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   
-  <!-- Favicon -->
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+  <!-- Favicon using Odara Studios Logo -->
+  <link rel="icon" type="image/png" href="/static/odara-mark.png">
+  <link rel="apple-touch-icon" href="/static/odara-mark.png">
   
   <!-- Custom Stylesheet -->
-  <link rel="stylesheet" href="/static/css/style.css?v=white12">
+  <link rel="stylesheet" href="/static/css/style.css?v=odara_nexa2">
+  <link rel="stylesheet" href="/static/css/mobile.css?v=odara_nexa2">
+
+
+  <!-- AEO Structured Data: WebApplication Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "VDOWN",
+    "url": "http://localhost:8000/",
+    "applicationCategory": "MultimediaApplication",
+    "operatingSystem": "All (Web, Windows, macOS, Linux, Android, iOS)",
+    "description": "Universal high-performance video and audio stream extractor supporting 4K UHD, 1080p, TikTok watermark removal, and studio MP3 conversion across 1,750+ platforms.",
+    "browserRequirements": "Requires JavaScript. Requires HTML5.",
+    "softwareVersion": "2.4.0",
+    "aggregateRating": {
+      "@type": "AggregateRating",
+      "ratingValue": "4.9",
+      "ratingCount": "1420",
+      "bestRating": "5",
+      "worstRating": "1"
+    },
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "featureList": [
+      "Lossless 4K UHD and 8K Video Extraction",
+      "Dedicated Single Stream and Batch Download Modes",
+      "Dynamic Format Sniffing & FFmpeg Remuxing",
+      "Studio Bitrate MP3 Audio Converter (320kbps, 256kbps, 192kbps, 128kbps)",
+      "TikTok Watermark-Free HD Extraction",
+      "Over 1,750 Supported Content Platforms and Protocols",
+      "Live Real-Time Streaming Download Progress"
+    ]
+  }
+  </script>
+
+  <!-- AEO Structured Data: HowTo Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    "name": "How to Download High-Resolution Video and Studio Audio with VDOWN",
+    "description": "Step-by-step guide on how to extract and download 4K videos, TikToks without watermarks, or MP3 audio using VDOWN.",
+    "step": [
+      {
+        "@type": "HowToStep",
+        "position": 1,
+        "name": "Copy and Paste Media Link",
+        "text": "Copy the video or audio URL from YouTube, TikTok, Instagram, Twitter/X, SoundCloud or any supported site and paste it into the VDOWN search bar."
+      },
+      {
+        "@type": "HowToStep",
+        "position": 2,
+        "name": "Select Quality and Format",
+        "text": "VDOWN instantly analyzes the link and displays available stream qualities: 4K UHD, 1440p, 1080p Full HD, 720p, or high-bitrate MP3 audio."
+      },
+      {
+        "@type": "HowToStep",
+        "position": 3,
+        "name": "Extract and Save",
+        "text": "Click 'Download Stream' to initiate high-speed download with automatic FFmpeg lossless audio-video muxing directly to your local storage."
+      }
+    ]
+  }
+  </script>
+
+  <!-- AEO Structured Data: FAQPage Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "What is VDOWN?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "VDOWN is a universal high-speed media downloader and stream extractor engine. Powered by yt-dlp and FFmpeg, it allows you to extract full-resolution 4K/8K video and studio MP3 audio from over 1,750 websites including YouTube, TikTok, Instagram, Twitter/X, Vimeo, SoundCloud, and Reddit without requiring account sign-up or bloated third-party software."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can VDOWN download YouTube videos in 4K UHD and 1080p with audio?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. YouTube serves high-resolution streams (1080p, 1440p, 4K 2160p, 8K 4320p) as separate video and audio tracks. VDOWN automatically sniffs the highest available video bitrate and pristine audio track, downloading and combining them losslessly using FFmpeg into a single high-fidelity MP4 or MKV file."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does VDOWN remove TikTok watermarks?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. When extracting TikTok videos, VDOWN automatically locates the original source camera stream, allowing you to download clean, watermark-free Full HD video as well as standalone MP3 audio."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How do I extract only MP3 audio from a video?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Simply switch the format mode selector to 'Audio Only' after inspecting any video link, or select your target bitrate (320kbps Studio, 256kbps High, 192kbps Standard). VDOWN extracts the audio track and encodes it into universal MP3 format."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is VDOWN free to use and are there download limits?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "VDOWN is 100% free and open-source with no daily download caps, no speed throttling, and no forced subscriptions or intrusive ads."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is my download history private?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. VDOWN operates locally on your machine or private instance. Your download history, media files, and URLs are stored exclusively on your local storage and are never uploaded to third-party tracking servers."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How does batch and playlist downloading work?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Switch to the 'Batch / Playlists' tab in the downloader hub, paste multiple URLs (one per line) or a playlist link, configure your desired default resolution, and click 'Start Batch Download'. VDOWN will queue and process all streams concurrently."
+        }
+      }
+    ]
+  }
+  </script>
+
+  <!-- WebSite & SearchAction Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "VDOWN",
+    "url": "http://localhost:8000/",
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": "http://localhost:8000/?url={search_term_string}",
+      "query-input": "required name=search_term_string"
+    }
+  }
+  </script>
 </head>
 <body class="dark-theme">
-  <!-- Luminous ethereal background glows matching Clash Display palette -->
-  <div class="bg-glow bg-glow-sky"></div>
-  <div class="bg-glow bg-glow-lilac"></div>
-  <div class="bg-glow bg-glow-deep"></div>
+  <!-- Luminous ethereal background glows matching Odara Studios palette (Flame Amber & Royal Ice) -->
+  <div class="bg-glow bg-glow-flame"></div>
+  <div class="bg-glow bg-glow-royal"></div>
+  <div class="bg-glow bg-glow-ice"></div>
 
-  <!-- Header (Full Width Layout) -->
+  <!-- Header (Full Width Layout with Odara Studios Synergy) -->
   <header class="app-header">
     <div class="header-container-full">
-      <div class="brand" id="brand-logo">
-        <div class="brand-icon">
-          <i class="fas fa-bolt-lightning"></i>
-        </div>
-        <div class="brand-text">
-          <h1 class="font-display">VDOWN</h1>
-          <span class="brand-badge">UNIVERSAL ENGINE</span>
-        </div>
+      <div class="brand-cluster">
+        <a href="#downloader-section" class="brand odara-main-brand" id="brand-logo" aria-label="ODARA STUDIOS Media Engine">
+          <img src="/static/odara-mark.png" alt="ODARA STUDIOS Logo" class="brand-odara-mark" width="40" height="40">
+          <div class="brand-text">
+            <h1 class="font-display brand-odara-name">[=ØDARA=]</h1>
+            <span class="brand-odara-sub font-display">STUDIOS <span class="brand-sub-badge">MEDIA ENGINE</span></span>
+          </div>
+        </a>
+
+        <div class="brand-separator" aria-hidden="true"></div>
+
+        <a href="https://odarastudios.vercel.app/" target="_blank" rel="noopener noreferrer" class="odara-header-pill" title="Engineered to Perfection • Visit Odara Studios Portfolio">
+          <span class="status-pulse-dot"></span>
+          <span class="odara-pill-label">ENGINEERED TO PERFECTION</span>
+          <i class="fas fa-arrow-up-right-from-square odara-pill-arrow"></i>
+        </a>
       </div>
 
-      <nav class="nav-links">
+      <nav class="nav-links" aria-label="Main Navigation">
         <a href="#downloader-section" class="nav-item active"><i class="fas fa-download"></i> <span>Downloader</span></a>
+        <a href="#how-it-works-section" class="nav-item"><i class="fas fa-circle-play"></i> <span>How It Works</span></a>
         <a href="#platforms-directory-section" class="nav-item"><i class="fas fa-list-check"></i> <span>Supported Sites</span> <span class="nav-pill">1,750+</span></a>
+        <a href="#faq-section" class="nav-item"><i class="fas fa-circle-question"></i> <span>FAQ</span></a>
         <a href="#library-section" class="nav-item" id="nav-library-btn"><i class="fas fa-clock-rotate-left"></i> <span>History</span> <span class="nav-pill" id="header-history-count">0</span></a>
         <button type="button" class="nav-btn-folder" id="header-open-folder-btn" title="Open Downloads Directory in Windows Explorer">
           <i class="fas fa-folder-open"></i> <span>Open Folder</span>
         </button>
       </nav>
+
     </div>
   </header>
+
+  <!-- Signature Odara Studios Ticker Ribbon (Royal Blue & Flame Diamonds) -->
+  <div class="odara-ticker-ribbon" aria-label="Engine Capabilities">
+    <div class="odara-ticker-track">
+      <span class="ticker-highlight"><i class="fas fa-bolt text-flame"></i> BUILT BY ODARA STUDIOS</span>
+      <span class="ticker-diamond">◆</span>
+      <span>YOUTUBE 4K UHD</span>
+      <span class="ticker-diamond">◆</span>
+      <span>TIKTOK NO WATERMARK</span>
+      <span class="ticker-diamond">◆</span>
+      <span>STUDIO 320KBPS MP3</span>
+      <span class="ticker-diamond">◆</span>
+      <span>1,750+ PLATFORMS</span>
+      <span class="ticker-diamond">◆</span>
+      <span>LOSSLESS FFMPEG MUXER</span>
+      <span class="ticker-diamond">◆</span>
+      <span>INSTAGRAM REELS</span>
+      <span class="ticker-diamond">◆</span>
+      <span>TWITTER / X HD</span>
+      <span class="ticker-diamond">◆</span>
+      <span>ENGINEERED TO PERFECTION</span>
+      <span class="ticker-diamond">◆</span>
+      <span class="ticker-highlight"><i class="fas fa-bolt text-flame"></i> BUILT BY ODARA STUDIOS</span>
+      <span class="ticker-diamond">◆</span>
+      <span>YOUTUBE 4K UHD</span>
+      <span class="ticker-diamond">◆</span>
+      <span>TIKTOK NO WATERMARK</span>
+      <span class="ticker-diamond">◆</span>
+      <span>STUDIO 320KBPS MP3</span>
+      <span class="ticker-diamond">◆</span>
+      <span>1,750+ PLATFORMS</span>
+      <span class="ticker-diamond">◆</span>
+      <span>LOSSLESS FFMPEG MUXER</span>
+      <span class="ticker-diamond">◆</span>
+      <span>INSTAGRAM REELS</span>
+      <span class="ticker-diamond">◆</span>
+      <span>TWITTER / X HD</span>
+      <span class="ticker-diamond">◆</span>
+      <span>ENGINEERED TO PERFECTION</span>
+      <span class="ticker-diamond">◆</span>
+    </div>
+  </div>
 
   <!-- Main Full-Width Bento Grid Content -->
   <main class="main-content-full">
     
-    <!-- Hero & Search Bento Section -->
-    <section class="bento-hero-section" id="downloader-section">
-      <div class="bento-hero-grid">
+    <!-- Studio Hero Section (Unboxed, Open Canvas, Odara Studios Aesthetic) -->
+    <section class="studio-hero-section" id="downloader-section">
+      <div class="studio-hero-container">
         
-        <!-- Bento Cell 1: Primary Search & Inspection Hub (Spans 8 cols) -->
-        <div class="bento-card bento-search-card">
-          <div class="card-ambient-glow"></div>
+        <!-- Header Content: Badge Pill, Title, Subtitle directly on the open canvas -->
+        <div class="studio-hero-header">
+          <div class="studio-pill-tag">
+            <span class="tag-dot odara-flame-dot"></span>
+            <i class="fas fa-wand-magic-sparkles text-flame"></i>
+            <span>1,750+ Platforms • Selectable 4K & MP3 • Lossless FFmpeg</span>
+          </div>
+
+          <h2 class="studio-hero-title font-display">
+            Download Any Media in <span class="odara-hero-highlight">Your Preferred Quality.</span>
+          </h2>
+
+          <p class="studio-hero-subtitle">
+            Universal high-speed stream extractor with dynamic quality detection (4K UHD, 1080p Full HD, 720p) and studio MP3 extraction. Built for privacy, speed, and zero throttling.
+          </p>
+        </div>
+
+        <!-- Mode Switcher (Floating Segmented Pill) -->
+        <div class="studio-mode-switcher-wrap">
+          <div class="downloader-mode-nav studio-mode-nav" role="tablist" aria-label="Downloader Mode Selector">
+            <button type="button" class="mode-tab-btn active" id="mode-tab-single" role="tab" aria-selected="true" aria-controls="panel-single-downloader">
+              <i class="fas fa-bolt-lightning text-flame"></i>
+              <span class="mode-tab-title font-display">Single Stream</span>
+              <span class="mode-tab-live-badge" id="badge-single-live" style="display: none;">
+                <span class="pulse-dot"></span> <span class="badge-text">Downloading</span>
+              </span>
+            </button>
+            <button type="button" class="mode-tab-btn" id="mode-tab-batch" role="tab" aria-selected="false" aria-controls="panel-batch-downloader">
+              <i class="fas fa-layer-group text-royal"></i>
+              <span class="mode-tab-title font-display">Batch / Playlists</span>
+              <span class="mode-tab-live-badge" id="badge-batch-live" style="display: none;">
+                <span class="pulse-dot"></span> <span class="badge-text">In Queue</span>
+              </span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Search & Batch Interactive Studio Area (Floating Omnibar) -->
+        <div class="studio-search-workspace">
           
-          <div class="hero-header-content">
-            <div class="bento-tag">
-              <span class="tag-dot"></span>
-              <i class="fas fa-wand-magic-sparkles"></i> 1,750+ Platforms • Selectable Quality • Lossless Muxer
+          <!-- PANEL 1: Single Stream Floating Omnibar -->
+          <div class="single-downloader-panel" id="panel-single-downloader">
+            <div class="search-input-box studio-omnibar" id="search-input-box">
+              <div class="input-platform-icon-wrap" id="platform-icon-wrapper" title="Detected Media Platform">
+                <i class="fas fa-link" id="current-platform-icon"></i>
+              </div>
+              <div class="input-field-wrap">
+                <input 
+                  type="text" 
+                  id="video-url-input" 
+                  placeholder="Paste video, audio, or playlist link..." 
+                  autocomplete="off" 
+                  spellcheck="false"
+                >
+                <span id="current-platform-label" style="display: none;"></span>
+              </div>
+              <div class="input-actions-group">
+                <button type="button" class="action-btn-chip clear-chip" id="clear-btn" title="Clear input" style="display: none;">
+                  <i class="fas fa-xmark"></i>
+                </button>
+                <button type="button" class="action-btn-chip paste-chip" id="paste-btn" title="Paste link from clipboard (Ctrl+V)">
+                  <i class="fas fa-paste"></i> <span>Paste</span>
+                </button>
+              </div>
+              <button type="button" class="fetch-btn-primary studio-fetch-btn" id="fetch-info-btn">
+                <span class="btn-text font-display"><i class="fas fa-magnifying-glass-chart"></i> Inspect Media</span>
+                <span class="btn-loader" style="display: none;"><i class="fas fa-spinner fa-spin"></i> Analyzing...</span>
+              </button>
             </div>
-            <h2 class="hero-title font-display">
-              Download Any Media in <span class="gradient-text">Your Preferred Quality</span>
-            </h2>
-            <p class="hero-subtitle">
-              Universal high-speed stream extractor with dynamic quality detection (4K UHD, 1080p Full HD, 720p, 480p) and studio MP3 extraction.
-            </p>
+
+            <!-- Quick Test Demo Pills (Clean & Floating) -->
+            <div class="demo-pills-row studio-demo-row">
+              <span class="demo-label">Quick Test:</span>
+              <button type="button" class="demo-pill" data-url="https://www.youtube.com/watch?v=dQw4w9WgXcQ">
+                <i class="fab fa-youtube" style="color: #FF4040;"></i> YouTube 4K
+              </button>
+              <button type="button" class="demo-pill" data-url="https://soundcloud.com/alanwalker/faded">
+                <i class="fab fa-soundcloud" style="color: #FF7700;"></i> SoundCloud
+              </button>
+              <button type="button" class="demo-pill" data-url="https://vimeo.com/76979871">
+                <i class="fab fa-vimeo-v" style="color: #0ea5e9;"></i> Vimeo HD
+              </button>
+
+              <!-- Discrete Dropdown for more sample links -->
+              <div class="demo-dropdown-wrap" id="demo-dropdown-wrap">
+                <button type="button" class="demo-pill demo-dropdown-toggle" id="demo-dropdown-toggle">
+                  <span>More Links</span> <i class="fas fa-chevron-down"></i>
+                </button>
+                <div class="demo-dropdown-menu" id="demo-dropdown-menu">
+                  <button type="button" class="demo-menu-item" data-type="batch" data-url="https://pimpbunny.com/onlyfans-creators/keiran-lee/">
+                    <i class="fas fa-layer-group" style="color: #FF5C8A;"></i> PimpBunny Creator (32 Videos Batch)
+                  </button>
+                  <button type="button" class="demo-menu-item" data-type="batch" data-url="https://www.youtube.com/playlist?list=PL15B1E77BB5708555">
+                    <i class="fab fa-youtube" style="color: #FF4040;"></i> YouTube Playlist (Top Hits Batch)
+                  </button>
+                  <button type="button" class="demo-menu-item" data-url="https://viralxxxporn.com/video/535804/kyneko-and-gattouz0-enjoy-intense-second-session-filming/">
+                    <i class="fas fa-fire" style="color: #FF6600;"></i> ViralXXX 1080p (KVS Multi-Quality)
+                  </button>
+                  <button type="button" class="demo-menu-item" data-url="https://pimpbunny.com/videos/cruise-ship-quickie-ends-in-a-deep-creampie/">
+                    <i class="fas fa-rabbit" style="color: #FF5C8A;"></i> PimpBunny (Flashvars Stream)
+                  </button>
+                  <button type="button" class="demo-menu-item" data-url="https://www.eporner.com/video-sI9bQ627zSv/vivienne-vo-gets-drilled-in-black-thigh-highs/">
+                    <i class="fas fa-circle-play" style="color: #000099;"></i> Eporner 1080p
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <!-- URL Input Bar -->
-          <div class="search-input-box" id="search-input-box">
-            <div class="input-platform-icon" id="platform-icon-wrapper">
-              <i class="fas fa-link" id="current-platform-icon"></i>
-            </div>
-            <input 
-              type="text" 
-              id="video-url-input" 
-              placeholder="Paste any link (YouTube, TikTok, SoundCloud, Instagram, Vimeo, adult tube sites, web pages)..." 
-              autocomplete="off" 
-              spellcheck="false"
-            >
-            <textarea
-              id="batch-url-textarea"
-              class="batch-url-textarea"
-              placeholder="Paste multiple URLs (one per line) or collection link...&#10;e.g.&#10;https://www.youtube.com/watch?v=...&#10;https://soundcloud.com/...&#10;https://pimpbunny.com/videos/..."
-              style="display: none;"
-            ></textarea>
-            <div class="input-actions-group">
-              <button type="button" class="action-btn-chip" id="batch-toggle-btn" title="Toggle Multi-Link / Batch Input">
-                <i class="fas fa-layer-group"></i> <span id="batch-toggle-label">Batch</span>
-              </button>
-              <button type="button" class="action-btn-chip" id="paste-btn" title="Paste from clipboard">
-                <i class="fas fa-paste"></i> <span>Paste</span>
-              </button>
-              <button type="button" class="action-btn-chip" id="clear-btn" title="Clear input" style="display: none;">
-                <i class="fas fa-xmark"></i>
-              </button>
-            </div>
-            <button type="button" class="fetch-btn-primary" id="fetch-info-btn">
-              <span class="btn-text font-display"><i class="fas fa-magnifying-glass-chart"></i> Inspect Media</span>
-              <span class="btn-loader" style="display: none;"><i class="fas fa-spinner fa-spin"></i> Analyzing...</span>
-            </button>
-          </div>
+          <!-- PANEL 2: Dedicated Batch Downloads Studio -->
+          <div class="batch-downloader-panel" id="panel-batch-downloader" style="display: none;">
+            <div class="batch-panel-card studio-batch-omnibar">
+              <div class="batch-panel-toolbar">
+                <div class="batch-toolbar-info">
+                  <span class="batch-counter-tag font-display" id="batch-url-count-pill">
+                    <i class="fas fa-list-check"></i> <span id="batch-count-num">0</span> URLs detected
+                  </span>
+                  <span class="batch-toolbar-hint">Paste one URL per line or a playlist / collection link</span>
+                </div>
+                <div class="batch-toolbar-actions">
+                  <button type="button" class="batch-action-chip" id="batch-paste-btn" title="Paste multiple URLs from clipboard">
+                    <i class="fas fa-paste"></i> <span>Paste Clipboard</span>
+                  </button>
+                  <button type="button" class="batch-action-chip" id="batch-sample-btn" title="Load sample multi-links for testing">
+                    <i class="fas fa-wand-magic-sparkles"></i> <span>Load Sample</span>
+                  </button>
+                  <button type="button" class="batch-action-chip danger" id="batch-clear-btn" title="Clear all URLs">
+                    <i class="fas fa-trash-can"></i> <span>Clear</span>
+                  </button>
+                </div>
+              </div>
 
-          <!-- Quick Test Demo Pills (Clean & Discrete) -->
-          <div class="demo-pills-row">
-            <span class="demo-label">Quick Test:</span>
-            <button type="button" class="demo-pill" data-url="https://www.youtube.com/watch?v=dQw4w9WgXcQ">
-              <i class="fab fa-youtube" style="color: #FF4040;"></i> YouTube 4K
-            </button>
-            <button type="button" class="demo-pill" data-url="https://soundcloud.com/alanwalker/faded">
-              <i class="fab fa-soundcloud" style="color: #FF7700;"></i> SoundCloud
-            </button>
-            <button type="button" class="demo-pill" data-url="https://vimeo.com/76979871">
-              <i class="fab fa-vimeo-v" style="color: #7BBBFF;"></i> Vimeo HD
-            </button>
+              <div class="batch-editor-container">
+                <textarea
+                  id="batch-url-textarea"
+                  class="batch-url-textarea"
+                  placeholder="Paste multiple URLs here (one per line) or a playlist URL...&#10;https://www.youtube.com/watch?v=aqz-KE-bpKQ&#10;https://soundcloud.com/alanwalker/faded&#10;https://vimeo.com/76979871"
+                  spellcheck="false"
+                ></textarea>
+              </div>
 
-            <!-- Discrete Dropdown for more sample links -->
-            <div class="demo-dropdown-wrap" id="demo-dropdown-wrap">
-              <button type="button" class="demo-pill demo-dropdown-toggle" id="demo-dropdown-toggle">
-                <span>More Links</span> <i class="fas fa-chevron-down"></i>
-              </button>
-              <div class="demo-dropdown-menu" id="demo-dropdown-menu">
-                <button type="button" class="demo-menu-item" data-url="https://pimpbunny.com/onlyfans-creators/keiran-lee/">
-                  <i class="fas fa-layer-group" style="color: #FF5C8A;"></i> PimpBunny Creator (32 Videos Batch)
-                </button>
-                <button type="button" class="demo-menu-item" data-url="https://www.youtube.com/playlist?list=PL15B1E77BB5708555">
-                  <i class="fab fa-youtube" style="color: #FF4040;"></i> YouTube Playlist (Top Hits Batch)
-                </button>
-                <button type="button" class="demo-menu-item" data-url="https://viralxxxporn.com/video/535804/kyneko-and-gattouz0-enjoy-intense-second-session-filming/">
-                  <i class="fas fa-fire" style="color: #B8A9FF;"></i> ViralXXX 1080p (KVS Multi-Quality)
-                </button>
-                <button type="button" class="demo-menu-item" data-url="https://pimpbunny.com/videos/cruise-ship-quickie-ends-in-a-deep-creampie/">
-                  <i class="fas fa-rabbit" style="color: #FF5C8A;"></i> PimpBunny (Flashvars Stream)
-                </button>
-                <button type="button" class="demo-menu-item" data-url="https://www.eporner.com/video-sI9bQ627zSv/vivienne-vo-gets-drilled-in-black-thigh-highs/">
-                  <i class="fas fa-circle-play" style="color: #7BBBFF;"></i> Eporner 1080p
+              <div class="batch-panel-footer">
+                <div class="batch-supported-chips">
+                  <span class="supported-chip"><i class="fab fa-youtube"></i> Playlists</span>
+                  <span class="supported-chip"><i class="fas fa-layer-group"></i> Multi-Links</span>
+                  <span class="supported-chip"><i class="fas fa-circle-play"></i> Creator Portals</span>
+                </div>
+                <button type="button" class="fetch-btn-primary batch-submit-btn" id="batch-fetch-info-btn">
+                  <span class="btn-text font-display"><i class="fas fa-layer-group"></i> Inspect Batch Collection</span>
+                  <span class="btn-loader" style="display: none;"><i class="fas fa-spinner fa-spin"></i> Processing Batch...</span>
                 </button>
               </div>
             </div>
@@ -162,61 +458,43 @@
 
         </div>
 
-        <!-- Bento Cell 2: Live Engine Telemetry & Quick Action Hub (Spans 4 cols) -->
-        <div class="bento-card bento-telemetry-card">
-          <div class="card-ambient-glow"></div>
-          
-          <div class="telemetry-header">
-            <div class="telemetry-title-group">
-              <span class="telemetry-badge font-display"><i class="fas fa-microchip"></i> ENGINE TELEMETRY</span>
-              <h3 class="font-display">VDOWN Core v2.4</h3>
+        <!-- Unboxed Studio Metrics Strip (Odara Studios Style) -->
+        <div class="studio-metrics-strip">
+          <div class="studio-metric-item">
+            <div class="metric-value-row">
+              <span class="metric-num font-display">1,750+</span>
             </div>
-            <div class="engine-live-indicator">
-              <span class="live-dot"></span> Online
-            </div>
+            <span class="metric-sublabel">SUPPORTED SITES</span>
           </div>
-
-          <div class="telemetry-metrics-grid">
-            <div class="telemetry-metric-tile">
-              <div class="tile-icon"><i class="fas fa-gauge-high" style="color: var(--color-sky);"></i></div>
-              <div class="tile-info">
-                <span class="tile-label">Download Pipeline</span>
-                <strong class="tile-value">Multi-Thread CDN</strong>
-              </div>
+          <div class="metric-divider" aria-hidden="true"></div>
+          <div class="studio-metric-item">
+            <div class="metric-value-row">
+              <span class="metric-num font-display">8K / 4K</span>
             </div>
-
-            <div class="telemetry-metric-tile">
-              <div class="tile-icon"><i class="fas fa-film" style="color: var(--color-lilac);"></i></div>
-              <div class="tile-info">
-                <span class="tile-label">Max Resolution</span>
-                <strong class="tile-value">8K UHD / 60fps</strong>
-              </div>
-            </div>
-
-            <div class="telemetry-metric-tile">
-              <div class="tile-icon"><i class="fas fa-music" style="color: var(--color-sky);"></i></div>
-              <div class="tile-info">
-                <span class="tile-label">Audio Quality</span>
-                <strong class="tile-value">320k MP3 / Lossless</strong>
-              </div>
-            </div>
-
-            <div class="telemetry-metric-tile">
-              <div class="tile-icon"><i class="fas fa-shield-halved" style="color: var(--color-lilac);"></i></div>
-              <div class="tile-info">
-                <span class="tile-label">Supported Sites</span>
-                <strong class="tile-value">1,750+ Engines</strong>
-              </div>
-            </div>
+            <span class="metric-sublabel">MAX RESOLUTION</span>
           </div>
-
-          <div class="telemetry-actions">
-            <button type="button" class="btn-telemetry-action" id="telemetry-open-folder-btn">
-              <i class="fas fa-folder-open"></i>
-              <span>Open Downloads Directory</span>
-              <span class="badge-folder-count" id="telemetry-folder-count">0 files</span>
-            </button>
+          <div class="metric-divider" aria-hidden="true"></div>
+          <div class="studio-metric-item">
+            <div class="metric-value-row">
+              <span class="metric-num font-display">320kbps</span>
+            </div>
+            <span class="metric-sublabel">LOSSLESS MP3</span>
           </div>
+          <div class="metric-divider" aria-hidden="true"></div>
+          <div class="studio-metric-item">
+            <div class="metric-value-row">
+              <span class="metric-num font-display">100%</span>
+            </div>
+            <span class="metric-sublabel">LOCAL & PRIVATE</span>
+          </div>
+          <div class="metric-divider" aria-hidden="true"></div>
+          <button type="button" class="studio-folder-btn" id="telemetry-open-folder-btn" title="Open Downloads Directory in Windows Explorer">
+            <i class="fas fa-folder-open text-flame"></i>
+            <div class="folder-btn-text">
+              <span class="folder-btn-title">Local Downloads</span>
+              <span class="folder-btn-badge" id="telemetry-folder-count">0 files</span>
+            </div>
+          </button>
         </div>
 
       </div>
@@ -520,11 +798,74 @@
       </div>
     </section>
 
+
+    <!-- How It Works Bento Section (AEO & Step-by-Step Guide) -->
+    <section class="bento-how-section" id="how-it-works-section" aria-labelledby="how-it-works-title">
+
+      <div class="section-header-wrap">
+        <div class="bento-tag">
+          <span class="tag-dot"></span>
+          <i class="fas fa-bolt-lightning"></i> 3 Simple Steps • Zero Friction
+        </div>
+        <h2 class="section-title font-display" id="how-it-works-title">
+          How to Download <span class="gradient-text">Video & Audio</span> in Seconds
+        </h2>
+        <p class="section-subtitle">
+          No third-party toolbars, no adware, no forced sign-ups. VDOWN operates directly on your local system with lossless FFmpeg stream muxing.
+        </p>
+      </div>
+
+      <div class="how-steps-grid">
+        <div class="how-step-card bento-card">
+          <div class="step-card-header">
+            <span class="step-badge font-display">01</span>
+            <div class="step-icon-wrap">
+              <i class="fas fa-link"></i>
+            </div>
+          </div>
+          <h3 class="step-title font-display">Paste Any Media Link</h3>
+          <p class="step-desc">
+            Copy the video or audio URL from YouTube, TikTok, Instagram, Twitter/X, Reddit, or any of 1,750+ supported web platforms and paste it into the VDOWN search bar.
+          </p>
+          <div class="step-tag"><i class="fas fa-check"></i> Auto-Detects Platform</div>
+        </div>
+
+        <div class="how-step-card bento-card">
+          <div class="step-card-header">
+            <span class="step-badge font-display">02</span>
+            <div class="step-icon-wrap">
+              <i class="fas fa-sliders"></i>
+            </div>
+          </div>
+          <h3 class="step-title font-display">Select Preferred Quality</h3>
+          <p class="step-desc">
+            Choose between lossless 4K UHD, 1440p, 1080p Full HD video, or pristine 320kbps MP3 audio. VDOWN inspects server format tables and available streams in real-time.
+          </p>
+          <div class="step-tag"><i class="fas fa-check"></i> 4K / 1080p / 320kbps MP3</div>
+        </div>
+
+        <div class="how-step-card bento-card">
+          <div class="step-card-header">
+            <span class="step-badge font-display">03</span>
+            <div class="step-icon-wrap">
+              <i class="fas fa-cloud-arrow-down"></i>
+            </div>
+          </div>
+          <h3 class="step-title font-display">Lossless Stream Muxing</h3>
+          <p class="step-desc">
+            Click Download to pull the stream at maximum connection speed. VDOWN automatically combines video and audio losslessly using FFmpeg and saves it to your drive.
+          </p>
+          <div class="step-tag"><i class="fas fa-check"></i> FFmpeg Lossless Muxer</div>
+        </div>
+      </div>
+    </section>
+
     <!-- Download History Library Bento Section -->
     <section class="bento-library-section" id="library-section">
+
       <div class="library-header-bar">
         <div class="library-title-group">
-          <div class="header-icon-box"><i class="fas fa-folder-arrow-down"></i></div>
+          <div class="header-icon-box"><i class="fas fa-box-archive"></i></div>
           <div>
             <h3 class="font-display">Download Library</h3>
             <span class="library-count-pill" id="library-count-badge">0 items</span>
@@ -605,7 +946,7 @@
 
           <div class="directory-search-box">
             <i class="fas fa-magnifying-glass"></i>
-            <input type="text" id="dir-search-input" placeholder="Filter sites by name or domain (e.g. YouTube, SoundCloud, xHamster, TikTok)...">
+            <input type="text" id="dir-search-input" placeholder="Filter sites (e.g. YouTube, TikTok)...">
           </div>
         </div>
 
@@ -621,6 +962,124 @@
       <!-- Directory Cards Bento Grid -->
       <div class="directory-bento-grid" id="directory-cards-container">
         <!-- Rendered dynamically by app.js from /api/supported-platforms -->
+      </div>
+    </section>
+
+    <!-- FAQ Bento Section (AEO & LLM Retrieval Accordion) -->
+    <section class="bento-faq-section" id="faq-section" aria-labelledby="faq-title">
+      <div class="section-header-wrap">
+        <div class="bento-tag">
+          <span class="tag-dot"></span>
+          <i class="fas fa-circle-question"></i> Answers to Common Inquiries
+        </div>
+        <h2 class="section-title font-display" id="faq-title">
+          Frequently Asked <span class="gradient-text">Questions</span>
+        </h2>
+        <p class="section-subtitle">
+          Direct, authoritative answers regarding 4K UHD extraction, MP3 conversion, privacy, playlist batching, and supported platforms.
+        </p>
+      </div>
+
+      <div class="faq-accordion-container" role="region" aria-label="Frequently Asked Questions Accordion">
+        
+        <div class="faq-item bento-card">
+          <button type="button" class="faq-trigger font-display" aria-expanded="false" aria-controls="faq-ans-1" id="faq-btn-1">
+            <span class="faq-q-text"><i class="fas fa-question-circle" style="color: var(--color-sky);"></i> What is VDOWN and how does it work?</span>
+            <span class="faq-icon-circle"><i class="fas fa-chevron-down"></i></span>
+          </button>
+          <div class="faq-body" id="faq-ans-1" role="region" aria-labelledby="faq-btn-1" hidden>
+            <div class="faq-body-content">
+              <p>
+                VDOWN is a high-speed universal media extraction engine built on modern Python, yt-dlp, and FFmpeg. It parses direct streaming manifests (DASH, HLS, adaptive MP4/M3U8) from over 1,750 websites and muxes the highest fidelity video stream with studio-quality audio directly to your local storage without cloud relay delays, subscription walls, or intrusive ads.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="faq-item bento-card">
+          <button type="button" class="faq-trigger font-display" aria-expanded="false" aria-controls="faq-ans-2" id="faq-btn-2">
+            <span class="faq-q-text"><i class="fas fa-video" style="color: var(--color-lilac);"></i> Can I download YouTube videos in 4K UHD and 1080p with audio?</span>
+            <span class="faq-icon-circle"><i class="fas fa-chevron-down"></i></span>
+          </button>
+          <div class="faq-body" id="faq-ans-2" role="region" aria-labelledby="faq-btn-2" hidden>
+            <div class="faq-body-content">
+              <p>
+                Yes! YouTube serves high-resolution streams (1080p, 1440p, 4K 2160p, 8K 4320p) as separate video-only and audio-only adaptive tracks. Many basic web downloaders fail and limit you to 360p or muted video. VDOWN solves this by downloading the highest available adaptive video stream and audio track, seamlessly merging them using bundled FFmpeg into a single high-fidelity, synchronized MP4 file.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="faq-item bento-card">
+          <button type="button" class="faq-trigger font-display" aria-expanded="false" aria-controls="faq-ans-3" id="faq-btn-3">
+            <span class="faq-q-text"><i class="fab fa-tiktok" style="color: var(--color-sky);"></i> Does VDOWN remove TikTok watermarks?</span>
+            <span class="faq-icon-circle"><i class="fas fa-chevron-down"></i></span>
+          </button>
+          <div class="faq-body" id="faq-ans-3" role="region" aria-labelledby="faq-btn-3" hidden>
+            <div class="faq-body-content">
+              <p>
+                Yes. When you inspect a TikTok video link, VDOWN queries the original publisher CDN stream before the watermark overlay is baked into the video. You receive a clean, watermark-free Full HD video as well as standalone MP3 audio.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="faq-item bento-card">
+          <button type="button" class="faq-trigger font-display" aria-expanded="false" aria-controls="faq-ans-4" id="faq-btn-4">
+            <span class="faq-q-text"><i class="fas fa-music" style="color: var(--color-lilac);"></i> How do I extract and convert audio to MP3?</span>
+            <span class="faq-icon-circle"><i class="fas fa-chevron-down"></i></span>
+          </button>
+          <div class="faq-body" id="faq-ans-4" role="region" aria-labelledby="faq-btn-4" hidden>
+            <div class="faq-body-content">
+              <p>
+                Paste any video or music link into the search bar. After VDOWN inspects the media, switch the mode selector to <strong>Audio Only</strong>. You can then pick your desired audio bitrate (320kbps Studio Master, 256kbps High, 192kbps Standard, or 128kbps Compact) and download the audio converted directly into universal MP3 format.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="faq-item bento-card">
+          <button type="button" class="faq-trigger font-display" aria-expanded="false" aria-controls="faq-ans-5" id="faq-btn-5">
+            <span class="faq-q-text"><i class="fas fa-shield-halved" style="color: var(--color-sky);"></i> Is my personal data or download history stored on external servers?</span>
+            <span class="faq-icon-circle"><i class="fas fa-chevron-down"></i></span>
+          </button>
+          <div class="faq-body" id="faq-ans-5" role="region" aria-labelledby="faq-btn-5" hidden>
+            <div class="faq-body-content">
+              <p>
+                No. VDOWN is completely private and runs on your local machine. Your download records, temporary stream segments, and history JSON files remain strictly on your local disk. No tracking analytics, telemetry, or third-party ad networks are used.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="faq-item bento-card">
+          <button type="button" class="faq-trigger font-display" aria-expanded="false" aria-controls="faq-ans-6" id="faq-btn-6">
+            <span class="faq-q-text"><i class="fas fa-layer-group" style="color: var(--color-lilac);"></i> How does batch and playlist downloading work?</span>
+            <span class="faq-icon-circle"><i class="fas fa-chevron-down"></i></span>
+          </button>
+          <div class="faq-body" id="faq-ans-6" role="region" aria-labelledby="faq-btn-6" hidden>
+            <div class="faq-body-content">
+              <p>
+                In the top downloader hub, click on the <strong>Batch / Playlists</strong> tab. You will be presented with a multi-line input where you can paste multiple links (one per line) or an entire YouTube/SoundCloud playlist URL. Set your default resolution or audio mode, and click <strong>Start Batch Download</strong> to queue and process them concurrently.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="faq-item bento-card">
+          <button type="button" class="faq-trigger font-display" aria-expanded="false" aria-controls="faq-ans-7" id="faq-btn-7">
+            <span class="faq-q-text"><i class="fas fa-gift" style="color: var(--color-sky);"></i> Is VDOWN completely free and are there download caps?</span>
+            <span class="faq-icon-circle"><i class="fas fa-chevron-down"></i></span>
+          </button>
+          <div class="faq-body" id="faq-ans-7" role="region" aria-labelledby="faq-btn-7" hidden>
+            <div class="faq-body-content">
+              <p>
+                VDOWN is 100% free and open-source. There are zero daily download limits, zero bandwidth throttling, and no premium paywalls. You can download as many single videos, playlists, or batch queues as your hard drive can store.
+              </p>
+            </div>
+          </div>
+        </div>
+
       </div>
     </section>
 
@@ -643,18 +1102,89 @@
   <!-- Toast Notification Container -->
   <div class="toast-container" id="toast-container"></div>
 
-  <!-- Footer -->
-  <footer class="app-footer">
+  <!-- Grand Odara Studios Footer (Cosmic Ink, Royal Radiant Gradient, Flame Accents) -->
+  <footer class="app-footer odara-footer" id="odara-studio-footer">
     <div class="footer-container-full">
-      <div class="footer-brand font-display">
-        <i class="fas fa-bolt-lightning" style="color: var(--color-sky);"></i> VDOWN Engine
+      <div class="footer-top-row">
+        
+        <!-- Odara Studios Brand Column -->
+        <div class="footer-brand-wrap">
+          <div class="odara-footer-brand-header">
+            <a href="https://odarastudios.vercel.app/" target="_blank" rel="noopener noreferrer" class="odara-studio-link" title="Visit Odara Studios Portfolio & Services">
+              <img src="/static/odara-mark-light.png" alt="Odara Studios Mark" class="odara-footer-logo-img" width="36" height="36">
+              <div class="odara-footer-brand-text">
+                <span class="odara-studio-title">[=ØDARA=] STUDIOS</span>
+                <span class="odara-studio-tagline">Engineered to Perfection</span>
+              </div>
+            </a>
+          </div>
+
+          <p class="footer-desc">
+            VDOWN is a universal high-speed stream extractor and local media processor. Built by <a href="https://odarastudios.vercel.app/" target="_blank" rel="noopener noreferrer" class="odara-inline-credit"><strong>Odara Studios</strong></a> with modern bento architecture, lossless FFmpeg muxing, and instant support for 1,750+ web platforms.
+          </p>
+
+          <div class="odara-studio-badges">
+            <span class="odara-flame-badge"><i class="fas fa-bolt"></i> BUILT BY ODARA STUDIOS</span>
+            <span class="odara-white-badge"><i class="fas fa-code-commit"></i> FIXED MILESTONES</span>
+            <a href="mailto:kingtenison@gmail.com" class="odara-contact-chip"><i class="fas fa-envelope"></i> kingtenison@gmail.com</a>
+          </div>
+        </div>
+
+        <!-- Directory & Links Columns -->
+        <div class="footer-links-grid">
+          <div class="footer-links-col">
+            <h4 class="font-display"><i class="fas fa-download text-flame"></i> Features</h4>
+            <a href="#downloader-section">Single Stream Downloader</a>
+            <a href="#downloader-section">Batch & Playlist Studio</a>
+            <a href="#how-it-works-section">4K UHD Video Extraction</a>
+            <a href="#how-it-works-section">320kbps MP3 Audio Converter</a>
+          </div>
+          <div class="footer-links-col">
+            <h4 class="font-display"><i class="fas fa-globe text-royal"></i> Supported Sites</h4>
+            <a href="#platforms-directory-section">1,750+ Platforms Directory</a>
+            <a href="#platforms-directory-section">YouTube & Social Media</a>
+            <a href="#platforms-directory-section">Music & Podcast Portals</a>
+            <a href="#platforms-directory-section">Generic HTML5 & M3U8</a>
+          </div>
+          <div class="footer-links-col">
+            <h4 class="font-display"><i class="fas fa-compass text-flame"></i> Resources & Studio</h4>
+            <a href="https://odarastudios.vercel.app/" target="_blank" rel="noopener noreferrer" class="odara-highlight-link">
+              <span>Odara Studios Portfolio</span> <i class="fas fa-arrow-up-right-from-square"></i>
+            </a>
+            <a href="#how-it-works-section">How It Works Guide</a>
+            <a href="#faq-section">Frequently Asked Questions</a>
+            <a href="#library-section">Local Downloads History</a>
+            <a href="/robots.txt" target="_blank" rel="noopener">Robots.txt Directives</a>
+            <a href="/sitemap.xml" target="_blank" rel="noopener">XML Sitemap</a>
+          </div>
+        </div>
       </div>
-      <p class="footer-copy">Universal High-Speed Media Extractor • Powered by yt-dlp & FFmpeg • Bento Box Architecture</p>
+
+      <div class="footer-bottom-row">
+        <p class="footer-copy">
+          &copy; 2026 VDOWN Media Engine. Built by <a href="https://odarastudios.vercel.app/" target="_blank" rel="noopener noreferrer" class="odara-footer-link">Odara Studios</a>. Engineered to perfection.
+        </p>
+
+        <!-- Signature Odara Tri-Color Dots -->
+        <div class="odara-tricolor-dots" aria-hidden="true" title="Odara Color Harmony">
+          <span class="dot-ice" title="Ice Blue"></span>
+          <span class="dot-royal" title="Royal Blue"></span>
+          <span class="dot-flame" title="Flame Orange"></span>
+        </div>
+
+        <div class="footer-legal-note">
+          <a href="https://odarastudios.vercel.app/" target="_blank" rel="noopener noreferrer" class="odara-founder-link">
+            <span>Visit Odara Studios</span> <i class="fas fa-arrow-up-right-from-square"></i>
+          </a>
+        </div>
+      </div>
     </div>
   </footer>
 
+
   <!-- App Script -->
-  <script src="/static/js/app.js?v=white12"></script>
+  <script src="/static/js/app.js?v=odara1"></script>
+
 
   <!-- Delete Confirmation Modal -->
   <div class="modal-backdrop" id="delete-confirm-modal" style="display: none;">

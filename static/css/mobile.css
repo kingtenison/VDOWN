@@ -1,0 +1,289 @@
+/* ==========================================================================
+   VDOWN - Responsive hardening layer (loaded AFTER style.css)
+   Goals: no horizontal overflow, no overlapping blocks, predictable stacking.
+   ========================================================================== */
+
+/* ---- Global safety net (all sizes) ---- */
+html, body { max-width: 100%; overflow-x: hidden; }
+img, video, audio, canvas, svg { max-width: 100%; }
+section[id] { scroll-margin-top: 120px; }
+
+/* Grid/flex children must be allowed to shrink or they push the page wider */
+.bento-hero-grid > *,
+.bento-result-grid > *,
+.bento-actions-grid > *,
+.history-bento-grid > *,
+.directory-bento-grid > *,
+.batch-items-container > *,
+.how-steps-grid > *,
+.footer-top-row > *,
+.footer-links-grid > *,
+.history-item > .history-info,
+.batch-item-card > *,
+.progress-info-group {
+  min-width: 0;
+}
+
+.history-title,
+.preview-title,
+.progress-media-title,
+.batch-collection-title { overflow-wrap: anywhere; }
+
+/* ==========================================================================
+   <= 1080px  (tablets / small laptops)
+   ========================================================================== */
+@media (max-width: 1080px) {
+  .batch-header-main { min-width: 0; flex-basis: 100%; }
+  .batch-header-bar { gap: 16px; }
+}
+
+/* ==========================================================================
+   <= 768px  (tablets portrait + phones)
+   ========================================================================== */
+@media (max-width: 768px) {
+
+  /* ---- Header: compact, left-aligned brand, swipeable nav ---- */
+  .app-header { padding: 8px 14px; }
+  .header-container-full { gap: 6px; }
+  .brand { width: auto; justify-content: flex-start; gap: 10px; }
+  .brand-odara-mark { width: 32px; height: 32px; }
+  .brand-text { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; }
+  .brand-odara-name { font-size: 1.3rem !important; text-align: left; }
+  .brand-odara-sub { font-size: 0.58rem; letter-spacing: 0.12em; text-align: left; }
+  .nav-links { padding: 2px 0 4px; margin: 0 -14px; padding-left: 14px; padding-right: 14px; }
+
+  /* ---- Layout rhythm ---- */
+  .main-content-full { padding: 14px 12px 40px; gap: 18px; }
+  .bento-tag { font-size: 0.68rem; padding: 5px 12px; line-height: 1.4; white-space: normal; max-width: 100%; }
+
+  /* ---- Studio Hero (Unboxed Odara Studios Style) ---- */
+  .studio-hero-section { padding: 18px 0 10px; }
+  .studio-hero-header { gap: 12px; }
+  .studio-hero-title { font-size: clamp(1.8rem, 7.5vw, 2.4rem); line-height: 1.12; }
+  .studio-hero-subtitle { font-size: 0.92rem; line-height: 1.5; }
+  .studio-pill-tag { font-size: 0.72rem; padding: 5px 12px; white-space: normal; text-align: center; line-height: 1.35; }
+  .studio-mode-nav { width: 100%; display: grid; grid-template-columns: 1fr 1fr; }
+  .studio-mode-nav .mode-tab-btn { justify-content: center; padding: 9px 8px; font-size: 0.82rem; }
+  
+  .studio-metrics-strip {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px 10px;
+    padding: 14px 6px;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+  }
+  .studio-metrics-strip .metric-divider { display: none; }
+  .studio-folder-btn {
+    grid-column: 1 / -1;
+    justify-content: center;
+    width: 100%;
+    padding: 10px 14px;
+  }
+  .demo-pills-row { gap: 8px; }
+  .demo-label { flex-basis: 100%; }
+  .demo-dropdown-menu { min-width: 0; width: min(270px, calc(100vw - 56px)); }
+
+  /* ---- Download library header ---- */
+  .library-header-bar { flex-direction: column; align-items: stretch; gap: 14px; }
+  .library-title-group { gap: 12px; flex-wrap: wrap; }
+  .header-icon-box { flex-shrink: 0; }
+  .library-title-group h3 { font-size: 1.2rem; }
+  .library-actions-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; }
+  .library-actions-group .btn-lib-control { justify-content: center; padding: 10px 12px; font-size: 0.82rem; white-space: nowrap; }
+  .library-actions-group .btn-lib-folder { grid-column: 1 / -1; }
+
+  /* ---- Library cards ---- */
+  .history-bento-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .history-item { flex-wrap: wrap; gap: 12px; padding: 12px; }
+  .history-thumb-wrap { width: 84px; height: 58px; }
+  .history-info { flex: 1 1 calc(100% - 110px); min-width: 0; }
+  .history-meta { flex-wrap: wrap; gap: 6px 10px; }
+  .history-actions { flex: 1 1 100%; justify-content: flex-end; border-top: 1px dashed rgba(5, 15, 42, 0.08); padding-top: 10px; }
+
+  /* ---- Preview / result ---- */
+  .bento-result-grid { grid-template-columns: minmax(0, 1fr); }
+  .raw-table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* ---- Active download card ---- */
+  .progress-top-row { align-items: flex-start; gap: 12px; }
+  .progress-thumb-container { width: 76px; height: 52px; }
+  .progress-status-badges { flex-wrap: wrap; }
+  .progress-media-title { font-size: 1rem; }
+  .download-success-actions { display: grid !important; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .download-success-actions[style*="display: none"] { display: none !important; }
+  .download-success-actions .bento-action-btn { justify-content: center; padding: 10px 8px; font-size: 0.82rem; }
+  .download-success-actions .btn-primary { grid-column: 1 / -1; }
+
+  /* ---- Batch studio ---- */
+  .batch-header-bar { flex-direction: column; align-items: stretch; padding-bottom: 18px; margin-bottom: 18px; }
+  .batch-collection-title { font-size: 1.2rem; }
+  .batch-global-controls { flex-direction: column; align-items: stretch; gap: 12px; }
+  .batch-control-group { justify-content: space-between; flex-wrap: wrap; }
+  .batch-control-group select { max-width: 60%; }
+  .batch-buttons-row { flex-wrap: wrap; gap: 8px; }
+  .batch-buttons-row > * { flex: 1 1 calc(50% - 8px); justify-content: center; }
+  .batch-items-container { grid-template-columns: minmax(0, 1fr); max-height: 460px; padding-right: 4px; gap: 12px; }
+  .batch-item-card:hover, .quality-card:hover, .history-item:hover { transform: none; }
+
+  /* ---- Directory ---- */
+  .directory-tabs-list { flex-wrap: wrap; overflow: visible; gap: 8px; }
+  .dir-tab-btn { white-space: nowrap; padding: 8px 14px; font-size: 0.82rem; }
+  .dir-dropdown-container { width: 100%; }
+  .dir-dropdown-trigger { width: 100%; justify-content: space-between; }
+  .dir-dropdown-menu { min-width: 0; width: 100%; }
+  .dir-active-notice { flex-direction: column; align-items: stretch; text-align: center; gap: 10px; }
+  .directory-search-box { padding: 10px 14px; }
+  .directory-bento-grid { grid-template-columns: minmax(0, 1fr); }
+
+  /* ---- Section headings (how it works / faq) ---- */
+  .bento-how-section, .bento-faq-section { margin: 28px 0; padding: 0; }
+  .section-title { font-size: clamp(1.4rem, 6vw, 1.8rem); }
+  .section-subtitle { font-size: 0.9rem; }
+  .faq-q-text { align-items: flex-start; }
+  .faq-q-text i { margin-top: 3px; }
+  .faq-body { padding: 0 18px 18px; }
+
+  /* ---- Footer ---- */
+  .app-footer { padding: 32px 16px 24px; margin-top: 32px; }
+  .footer-container-full { gap: 28px; align-items: stretch; text-align: left; }
+  .footer-top-row { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  .footer-links-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 16px; }
+  .footer-bottom-row { flex-direction: column; align-items: flex-start; }
+  .footer-legal-note { text-align: left; max-width: none; }
+
+  /* ---- Modals / toasts ---- */
+  .modal-backdrop { padding: 12px; }
+  .dialog-box { padding: 20px; }
+  .dialog-footer { flex-direction: column-reverse; align-items: stretch; }
+  .dialog-footer > button { width: 100%; justify-content: center; }
+  .toast-container { left: 12px; right: 12px; bottom: 12px; }
+  .toast { width: 100%; }
+}
+
+/* ==========================================================================
+   <= 480px  (phones)
+   ========================================================================== */
+@media (max-width: 480px) {
+  .studio-hero-title { font-size: clamp(1.6rem, 8vw, 2.05rem); }
+  .studio-metrics-strip { gap: 12px 8px; padding: 14px 10px; }
+  .metric-num { font-size: 1.15rem; }
+  .metric-sublabel { font-size: 0.62rem; }
+  .telemetry-metrics-grid { grid-template-columns: minmax(0, 1fr); }
+  .telemetry-header { flex-wrap: wrap; }
+  .footer-links-grid { grid-template-columns: minmax(0, 1fr); }
+  .library-actions-group { grid-template-columns: minmax(0, 1fr); }
+  .library-actions-group .btn-lib-folder { grid-column: auto; }
+  .download-success-actions { grid-template-columns: minmax(0, 1fr); }
+  .batch-buttons-row > * { flex-basis: 100%; }
+  .batch-control-group select { max-width: 100%; width: 100%; }
+  .how-step-card { padding: 18px 16px; }
+  .step-badge { font-size: 1.8rem; }
+  .action-btn-chip.paste-chip span { display: none; } /* icon-only paste keeps the input roomy */
+  .action-btn-chip.paste-chip { padding: 0; width: 36px; justify-content: center; }
+}
+
+/* ==========================================================================
+   <= 360px  (very small phones)
+   ========================================================================== */
+@media (max-width: 360px) {
+  .main-content-full { padding-left: 10px; padding-right: 10px; }
+  .hero-header-content .hero-title { font-size: 1.45rem; }
+  .mode-tab-btn { font-size: 0.78rem; padding: 8px 6px; gap: 4px; }
+  .demo-pill { padding: 6px 10px; font-size: 0.78rem; }
+}
+
+/* Active tab icons must stay readable on the gradient fill */
+.dir-tab-btn.active i { color: #FFFFFF !important; }
+.mode-tab-btn.active i { color: #FFFFFF !important; }
+
+
+/* ---- Round 2: reachability + tiny-screen polish ---- */
+.downloader-mode-nav, .mode-tab-btn { min-width: 0; }
+@media (max-width: 768px) {
+  /* Directory: contained scroller so FAQ/footer stay within reach */
+  .directory-bento-grid {
+    max-height: 70vh;
+    overflow-y: auto;
+    padding-right: 4px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+  .dir-card { padding: 14px; }
+  /* Fade hint that the nav strip swipes */
+  .nav-links {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+            mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  }
+}
+@media (max-width: 360px) {
+  .mode-tab-btn { overflow: hidden; text-overflow: ellipsis; }
+  .mode-tab-btn i { display: none; }
+}
+
+
+/* ---- Odara Studios Header & Ticker Responsive Rules ---- */
+@media (max-width: 900px) {
+  .brand-cluster { flex-wrap: wrap; gap: 8px; }
+  .brand-separator { display: none; }
+  .odara-header-pill { font-size: 0.74rem; padding: 4px 10px; }
+}
+
+@media (max-width: 640px) {
+  /* Search Box Stacking: clean touch-friendly layout on phones */
+  .search-input-box {
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    gap: 8px;
+    min-height: auto;
+  }
+  .input-field-wrap {
+    flex: 1 1 calc(100% - 90px);
+    min-width: 0;
+  }
+  .search-input-box input {
+    font-size: 0.95rem;
+    padding: 6px 0;
+  }
+  .input-actions-group {
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+  .fetch-btn-primary {
+    width: 100%;
+    margin-top: 4px;
+    height: 46px;
+    font-size: 0.92rem;
+  }
+
+  .odara-ticker-ribbon {
+    padding: 6px 0;
+    font-size: 0.72rem;
+  }
+  .odara-ticker-track {
+    gap: 16px;
+  }
+  
+  .odara-footer {
+    border-top-left-radius: 20px;
+    border-top-right-radius: 20px;
+    padding: 32px 14px 24px;
+  }
+  .odara-footer-logo-img {
+    width: 32px;
+    height: 32px;
+  }
+  .odara-studio-title {
+    font-size: 1.25rem;
+  }
+  .odara-flame-badge, .odara-white-badge, .odara-contact-chip {
+    font-size: 0.7rem;
+    padding: 4px 10px;
+  }
+  .odara-footer .footer-bottom-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+}

@@ -42,6 +42,7 @@ downloader = VideoDownloader()
 # Request Models
 class ExtractRequest(BaseModel):
     url: str
+    is_batch: Optional[bool] = False
 
 class DownloadRequest(BaseModel):
     url: str
@@ -200,7 +201,7 @@ async def extract_video_info(req: ExtractRequest):
     try:
         # Run in executor because yt-dlp network extraction is synchronous
         loop = asyncio.get_running_loop()
-        data = await loop.run_in_executor(None, downloader.extract_info, url)
+        data = await loop.run_in_executor(None, downloader.extract_info, url, req.is_batch)
         return {"success": True, "data": data}
     except Exception as e:
         error_msg = str(e)
@@ -218,19 +219,7 @@ async def start_download(req: DownloadRequest):
     if not url:
         raise HTTPException(status_code=400, detail="Missing URL")
 
-    download_id = downloader.start_download(
-        url=url,
-        mode=req.mode,
-        quality_id=req.quality_id,
-        container=req.container,
-        embed_subtitles=req.embed_subtitles,
-        custom_filename=req.custom_filename,
-        title=req.title
-    )
-
-    # Attach extra metadata so when finished, history has complete info
-    info_ref = downloader.active_downloads[download_id]
-    info_ref["client_meta"] = {
+    meta = {
         "title": req.title,
         "thumbnail": req.thumbnail,
         "duration_str": req.duration_str,
@@ -239,6 +228,17 @@ async def start_download(req: DownloadRequest):
         "quality_id": req.quality_id,
         "container": req.container
     }
+
+    download_id = downloader.start_download(
+        url=url,
+        mode=req.mode,
+        quality_id=req.quality_id,
+        container=req.container,
+        embed_subtitles=req.embed_subtitles,
+        custom_filename=req.custom_filename,
+        title=req.title,
+        client_meta=meta
+    )
 
     return {"success": True, "download_id": download_id}
 
@@ -250,23 +250,24 @@ async def get_download_progress(download_id: str):
     
     # Check if finished and not yet saved to history
     if task.get("status") == "finished" and not task.get("history_saved"):
-        filepath = task.get("filepath")
-        filesize = os.path.getsize(filepath) if filepath and os.path.exists(filepath) else 0
-        meta = task.get("client_meta", {})
-        add_to_history({
-            "id": download_id,
-            "title": task.get("title") or meta.get("title") or "Unknown Video",
-            "url": task.get("url"),
-            "filepath": filepath,
-            "filename": task.get("filename"),
-            "filesize": filesize,
-            "filesize_str": format_size(filesize),
-            "thumbnail": meta.get("thumbnail"),
-            "uploader": meta.get("uploader"),
-            "duration_str": meta.get("duration_str"),
-            "mode": meta.get("mode"),
-            "quality": meta.get("quality_id")
-        })
+        if not task.get("batch_id"):
+            filepath = task.get("filepath")
+            filesize = os.path.getsize(filepath) if filepath and os.path.exists(filepath) else 0
+            meta = task.get("client_meta", {})
+            add_to_history({
+                "id": download_id,
+                "title": task.get("title") or meta.get("title") or "Unknown Video",
+                "url": task.get("url"),
+                "filepath": filepath,
+                "filename": task.get("filename"),
+                "filesize": filesize,
+                "filesize_str": format_size(filesize),
+                "thumbnail": meta.get("thumbnail"),
+                "uploader": meta.get("uploader"),
+                "duration_str": meta.get("duration_str"),
+                "mode": meta.get("mode"),
+                "quality": meta.get("quality_id")
+            })
         task["history_saved"] = True
 
     return task
@@ -302,23 +303,24 @@ async def websocket_progress(websocket: WebSocket, download_id: str):
 
             # Handle history persistence
             if task.get("status") == "finished" and not task.get("history_saved"):
-                filepath = task.get("filepath")
-                filesize = os.path.getsize(filepath) if filepath and os.path.exists(filepath) else 0
-                meta = task.get("client_meta", {})
-                add_to_history({
-                    "id": download_id,
-                    "title": task.get("title") or meta.get("title") or "Unknown Video",
-                    "url": task.get("url"),
-                    "filepath": filepath,
-                    "filename": task.get("filename"),
-                    "filesize": filesize,
-                    "filesize_str": format_size(filesize),
-                    "thumbnail": meta.get("thumbnail"),
-                    "uploader": meta.get("uploader"),
-                    "duration_str": meta.get("duration_str"),
-                    "mode": meta.get("mode"),
-                    "quality": meta.get("quality_id")
-                })
+                if not task.get("batch_id"):
+                    filepath = task.get("filepath")
+                    filesize = os.path.getsize(filepath) if filepath and os.path.exists(filepath) else 0
+                    meta = task.get("client_meta", {})
+                    add_to_history({
+                        "id": download_id,
+                        "title": task.get("title") or meta.get("title") or "Unknown Video",
+                        "url": task.get("url"),
+                        "filepath": filepath,
+                        "filename": task.get("filename"),
+                        "filesize": filesize,
+                        "filesize_str": format_size(filesize),
+                        "thumbnail": meta.get("thumbnail"),
+                        "uploader": meta.get("uploader"),
+                        "duration_str": meta.get("duration_str"),
+                        "mode": meta.get("mode"),
+                        "quality": meta.get("quality_id")
+                    })
                 task["history_saved"] = True
 
             await websocket.send_json(task)
@@ -538,7 +540,31 @@ async def serve_favicon():
     favicon_path = os.path.join(STATIC_DIR, "favicon.ico")
     if os.path.exists(favicon_path):
         return FileResponse(favicon_path, media_type="image/x-icon")
+    svg_path = os.path.join(STATIC_DIR, "favicon.svg")
+    if os.path.exists(svg_path):
+        return FileResponse(svg_path, media_type="image/svg+xml")
     return HTMLResponse(content="", status_code=204)
+
+@app.get("/robots.txt", include_in_schema=False)
+async def serve_robots():
+    robots_path = os.path.join(STATIC_DIR, "robots.txt")
+    if os.path.exists(robots_path):
+        return FileResponse(robots_path, media_type="text/plain; charset=utf-8")
+    return HTMLResponse("User-agent: *\nAllow: /\n", media_type="text/plain")
+
+@app.get("/sitemap.xml", include_in_schema=False)
+async def serve_sitemap():
+    sitemap_path = os.path.join(STATIC_DIR, "sitemap.xml")
+    if os.path.exists(sitemap_path):
+        return FileResponse(sitemap_path, media_type="application/xml; charset=utf-8")
+    return HTMLResponse("<urlset></urlset>", media_type="application/xml")
+
+@app.get("/manifest.json", include_in_schema=False)
+async def serve_manifest():
+    manifest_path = os.path.join(STATIC_DIR, "manifest.json")
+    if os.path.exists(manifest_path):
+        return FileResponse(manifest_path, media_type="application/json")
+    return JSONResponse({"name": "VDOWN"})
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_index():
@@ -547,3 +573,4 @@ async def serve_index():
         with open(index_path, "r", encoding="utf-8") as f:
             return HTMLResponse(content=f.read())
     return HTMLResponse("<h1>VDOWN is loading... please check static files.</h1>")
+

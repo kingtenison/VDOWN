@@ -25,5 +25,6 @@ if __name__ == "__main__":
     # Auto-open browser in background thread
     threading.Thread(target=open_browser, daemon=True).start()
     
-    # Run uvicorn server
-    uvicorn.run("backend.app:app", host="127.0.0.1", port=8000, reload=False)
+    # Run uvicorn server with auto-reload
+    uvicorn.run("backend.app:app", host="127.0.0.1", port=8000, reload=True, reload_dirs=["backend"])
+

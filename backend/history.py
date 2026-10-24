@@ -26,8 +26,17 @@ def save_history(history: List[Dict[str, Any]]):
 
 def add_to_history(item: Dict[str, Any]):
     history = load_history()
-    # Check if item with same filepath exists, remove it first
-    history = [h for h in history if h.get("filepath") != item.get("filepath")]
+    item_id = item.get("id")
+    item_fp = item.get("filepath")
+    
+    # Remove existing entry if matching id or matching non-empty filepath
+    history = [
+        h for h in history
+        if not (
+            (item_id and h.get("id") == item_id) or
+            (item_fp and h.get("filepath") and os.path.normpath(h.get("filepath")) == os.path.normpath(item_fp))
+        )
+    ]
     item["timestamp"] = int(time.time())
     history.insert(0, item)
     # Keep last 100 items
