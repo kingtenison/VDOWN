@@ -172,11 +172,15 @@ async def resolve_poll(progress_url: str, fn: str = "download.mp4"):
         return JSONResponse(status_code=400, content={"success": False, "detail": res.get("error", "Conversion failed")})
 
     if res.get("status") == "finished" and res.get("download_url"):
+        params = {
+            "u": res["download_url"],
+            "fn": fn,
+        }
         return {
             "success": True,
             "status": "finished",
             "filename": fn,
-            "proxy_url": res["download_url"],
+            "proxy_url": "/api/proxy?" + urllib.parse.urlencode(params),
             "direct_url": res["download_url"]
         }
 

@@ -2001,12 +2001,12 @@ class VideoDownloader:
             if poll_res.get('status') == 'finished' and poll_res.get('download_url'):
                 return {
                     'direct_url': poll_res['download_url'],
-                    'use_direct_url': True,
-                    'referer': 'https://loader.to/',
+                    'use_direct_url': False,
+                    'referer': 'https://y2down.cc/',
                     'title': title,
                     'ext': ext,
                     'filesize': 0,
-                    'headers': {'User-Agent': DEFAULT_USER_AGENT}
+                    'headers': {'User-Agent': DEFAULT_USER_AGENT, 'Referer': 'https://y2down.cc/'}
                 }
             if poll_res.get('status') == 'error':
                 raise RuntimeError(poll_res.get('error') or "Cloud YouTube conversion failed.")
