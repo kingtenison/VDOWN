@@ -1356,11 +1356,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (directRes.ok) {
           const pdata = await directRes.json();
           if (pdata.download_url) {
+            const proxyParams = new URLSearchParams({
+              u: pdata.download_url,
+              fn: filename || 'download.mp4'
+            });
             return {
               success: true,
               status: 'finished',
               filename: filename || 'download.mp4',
-              proxy_url: pdata.download_url,
+              proxy_url: `/api/proxy?${proxyParams.toString()}`,
               direct_url: pdata.download_url
             };
           }
