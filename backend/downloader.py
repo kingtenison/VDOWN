@@ -1883,7 +1883,7 @@ class VideoDownloader:
                     'difficulty': ch['difficulty'],
                     'expires_at': ch['expires_at'],
                     'signature': ch['signature'],
-                    'nonce': str(nonce)
+                    'nonce': nonce
                 },
                 timeout=5
             )
@@ -1943,8 +1943,8 @@ class VideoDownloader:
 
         req_headers = {
             'User-Agent': DEFAULT_USER_AGENT,
-            'Origin': 'https://loader.to',
-            'Referer': 'https://loader.to/api/button/',
+            'Origin': 'https://y2down.cc',
+            'Referer': 'https://y2down.cc/',
             'Accept': 'application/json, text/plain, */*'
         }
 
@@ -1957,16 +1957,16 @@ class VideoDownloader:
             try:
                 active_host = host
                 pow_token = self._mint_pow_token(host, req_headers)
-                params = {
-                    'button': '1',
-                    'format': fmt,
-                    'iframe_source': 'direct-iframe',
-                    'url': url,
-                }
+                auth_headers = dict(req_headers)
                 if pow_token:
-                    params['pow_token'] = pow_token
+                    auth_headers['Authorization'] = f"Bearer {pow_token}"
+                params = {
+                    'format': fmt,
+                    'url': url,
+                    'apikey': 'dfcb6d76f2f6a9894gjkege8a4ab232222',
+                }
                 init_url = f"{host}/api/v2/download?{urllib.parse.urlencode(params)}"
-                data = self._cloud_http_json(init_url, headers=req_headers, timeout=7)
+                data = self._cloud_http_json(init_url, headers=auth_headers, timeout=7)
                 if data and (data.get('id') or data.get('success')):
                     break
             except Exception as e:
@@ -1980,9 +1980,16 @@ class VideoDownloader:
         info_meta = data.get('info') or {}
         title = info_meta.get('title') or data.get('title') or None
         prog_url = data.get('progress_url') or f"{active_host}/api/progress?id={urllib.parse.quote(str(task_id))}"
-        if pow_token and 'pow_token=' not in prog_url:
-            sep = '&' if '?' in prog_url else '?'
-            prog_url = f"{prog_url}{sep}pow_token={urllib.parse.quote(pow_token)}"
+
+        if os.environ.get("VERCEL") or max_wait <= 0:
+            return {
+                'status': 'converting',
+                'progress_url': prog_url,
+                'progress': 20.0,
+                'stage': 'Preparing cloud YouTube stream...',
+                'title': title,
+                'ext': ext,
+            }
 
         deadline = time.time() + max_wait
         last_pct = 15.0
@@ -2124,6 +2131,8 @@ class VideoDownloader:
             yt_vid_match = re.search(r'(?:v=|youtu\.be/|shorts/|embed/)([a-zA-Z0-9_-]{11})', url)
             if yt_vid_match:
                 url = f"https://www.youtube.com/watch?v={yt_vid_match.group(1)}"
+            if os.environ.get("VERCEL"):
+                return self.resolve_youtube_cloud(url, mode=mode, quality_id=quality_id, max_wait=0.0)
 
         # 3) yt-dlp: extract info and resolve progressive format (with tv_embedded + JS runtime for YouTube)
         opts = self.get_base_ydl_opts(url)

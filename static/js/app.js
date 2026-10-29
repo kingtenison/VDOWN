@@ -1351,6 +1351,36 @@ document.addEventListener('DOMContentLoaded', () => {
   async function pollCloudConversion(progressUrl, filename, onProgress) {
     for (let attempt = 0; attempt < 90; attempt++) {
       await new Promise(r => setTimeout(r, 1200));
+      try {
+        const directRes = await fetch(progressUrl, { cache: 'no-store' });
+        if (directRes.ok) {
+          const pdata = await directRes.json();
+          if (pdata.download_url) {
+            return {
+              success: true,
+              status: 'finished',
+              filename: filename || 'download.mp4',
+              proxy_url: pdata.download_url,
+              direct_url: pdata.download_url
+            };
+          }
+          if (pdata.error || (pdata.success === 0 && (pdata.progress || 0) >= 1000 && !pdata.download_url)) {
+            throw new Error(pdata.text || 'Cloud stream conversion failed.');
+          }
+          const rawProg = Number(pdata.progress || 0);
+          const pct = Math.min(Math.max(Math.round(rawProg / 10), 10), 95);
+          const text = pdata.text || 'Processing stream...';
+          if (onProgress) {
+            onProgress(pct, `Cloud Stream: ${text} (${pct}%)`);
+          }
+          continue;
+        }
+      } catch (directErr) {
+        if (directErr && directErr.message && directErr.message.includes('conversion failed')) {
+          throw directErr;
+        }
+      }
+
       const params = new URLSearchParams({ progress_url: progressUrl, fn: filename || 'download.mp4' });
       const res = await fetch(`/api/resolve-poll?${params.toString()}`);
       const data = await res.json();
