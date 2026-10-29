@@ -146,6 +146,9 @@ async def resolve_stream(req: ResolveRequest):
         "u": info["direct_url"],
         "fn": filename,
         "h": base64.urlsafe_b64encode(json.dumps(headers).encode()).decode(),
+        "src_url": url,
+        "mode": req.mode,
+        "qid": req.quality_id,
     }
     return {
         "success": True,
@@ -186,7 +189,15 @@ async def resolve_poll(progress_url: str, fn: str = "download.mp4"):
 
 
 @app.get("/api/proxy")
-def proxy_stream(request: Request, u: str, fn: str = "download.mp4", h: str = ""):
+def proxy_stream(
+    request: Request,
+    u: str,
+    fn: str = "download.mp4",
+    h: str = "",
+    src_url: str = "",
+    mode: str = "video",
+    qid: str = "720",
+):
     parsed = urllib.parse.urlparse(u)
     if parsed.scheme not in ("http", "https") or not parsed.hostname or not _is_public_host(parsed.hostname):
         raise HTTPException(status_code=400, detail="Invalid stream URL")
@@ -203,13 +214,28 @@ def proxy_stream(request: Request, u: str, fn: str = "download.mp4", h: str = ""
     if client_range:
         fwd["Range"] = client_range
 
+    upstream = None
     try:
         req = urllib.request.Request(u, headers=fwd)
         upstream = urllib.request.urlopen(req, timeout=30)
-    except urllib.error.HTTPError as e:
-        raise HTTPException(status_code=e.code, detail=f"Media server returned error: {e.reason}")
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Media server refused the stream: {e}")
+    except Exception as first_err:
+        # If upstream stream is IP-bound (e.g., googlevideo.com on serverless) and hit a different instance,
+        # re-resolve in this exact serverless invocation so extraction IP == streaming IP.
+        if src_url:
+            try:
+                fresh = downloader.resolve_direct_stream(src_url, mode=mode, quality_id=qid)
+                fresh_u = fresh.get("direct_url")
+                if fresh_u:
+                    fresh_p = urllib.parse.urlparse(fresh_u)
+                    if fresh_p.scheme in ("http", "https") and fresh_p.hostname and _is_public_host(fresh_p.hostname):
+                        req2 = urllib.request.Request(fresh_u, headers=fwd)
+                        upstream = urllib.request.urlopen(req2, timeout=30)
+            except Exception:
+                pass
+        if upstream is None:
+            if isinstance(first_err, urllib.error.HTTPError):
+                raise HTTPException(status_code=first_err.code, detail=f"Media server returned error: {first_err.reason}")
+            raise HTTPException(status_code=502, detail=f"Media server refused the stream: {first_err}")
 
     def iter_chunks():
         try:

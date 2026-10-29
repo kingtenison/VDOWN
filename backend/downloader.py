@@ -36,7 +36,13 @@ def get_available_js_runtimes() -> dict:
     if node_path:
         runtimes["node"] = {"path": node_path}
     deno_path = shutil.which("deno")
-    if deno_path:
+    if not deno_path:
+        try:
+            import deno
+            deno_path = deno.find_deno_bin()
+        except Exception:
+            deno_path = None
+    if deno_path and os.path.exists(deno_path):
         runtimes["deno"] = {"path": deno_path}
     bun_path = shutil.which("bun")
     if bun_path:
@@ -177,6 +183,13 @@ class VideoDownloader:
         runtimes = get_available_js_runtimes()
         if runtimes:
             opts['js_runtimes'] = runtimes
+
+        if url and ("youtube.com" in url.lower() or "youtu.be" in url.lower()):
+            opts['extractor_args'] = {
+                'youtube': {
+                    'player_client': ['tv_embedded', 'mweb', 'web']
+                }
+            }
             
         ffmpeg_dir = get_ffmpeg_dir()
         if ffmpeg_dir:
@@ -2023,6 +2036,13 @@ class VideoDownloader:
         text = pdata.get('text') or 'Processing stream...'
 
         if dl_url:
+            parsed_dl = urllib.parse.urlparse(dl_url)
+            dl_host = (parsed_dl.hostname or '').lower()
+            if dl_host in ('p.savenow.to', 'p.lbserver.xyz', 'savenow.to', 'lbserver.xyz'):
+                return {
+                    'status': 'error',
+                    'error': 'Cloud worker rejected datacenter IP.'
+                }
             return {
                 'status': 'finished',
                 'progress': 100.0,
@@ -2099,15 +2119,13 @@ class VideoDownloader:
                     'headers': {'Referer': url, 'User-Agent': DEFAULT_USER_AGENT}
                 }
 
-        # 2.5) On Vercel/cloud deployments (or high-res/audio YouTube where progressive streams aren't available),
-        # use the cloud YouTube resolver directly to avoid datacenter IP blocks and merged-stream limits.
-        if is_yt and (os.environ.get("VERCEL") or mode == 'audio' or (target_height and target_height >= 720)):
-            try:
-                return self.resolve_youtube_cloud(url, mode=mode, quality_id=quality_id)
-            except Exception:
-                pass
+        # 2.5) Normalize single YouTube watch URLs before resolving
+        if is_yt:
+            yt_vid_match = re.search(r'(?:v=|youtu\.be/|shorts/|embed/)([a-zA-Z0-9_-]{11})', url)
+            if yt_vid_match:
+                url = f"https://www.youtube.com/watch?v={yt_vid_match.group(1)}"
 
-        # 3) yt-dlp: extract info and resolve progressive format
+        # 3) yt-dlp: extract info and resolve progressive format (with tv_embedded + JS runtime for YouTube)
         opts = self.get_base_ydl_opts(url)
         info = None
         try:
@@ -2124,13 +2142,19 @@ class VideoDownloader:
 
         direct_url = (info or {}).get('url')
         formats = (info or {}).get('formats', [])
+        picked_fmt = None
 
         if not direct_url and formats:
             if mode == 'audio':
                 audios = [f for f in formats if f.get('url') and (f.get('vcodec') == 'none' or 'audio' in (f.get('format_note') or '').lower())]
                 if audios:
-                    audios_sorted = sorted(audios, key=lambda x: x.get('abr') or x.get('tbr') or 0, reverse=True)
-                    direct_url = audios_sorted[0]['url']
+                    audios_sorted = sorted(
+                        audios,
+                        key=lambda x: (1 if x.get('ext') == 'm4a' else 0, x.get('abr') or x.get('tbr') or 0),
+                        reverse=True
+                    )
+                    picked_fmt = audios_sorted[0]
+                    direct_url = picked_fmt['url']
             else:
                 prog = [f for f in formats if f.get('url') and f.get('vcodec') != 'none' and f.get('acodec') != 'none' and f.get('protocol', '').startswith('http')]
                 if prog:
@@ -2138,10 +2162,12 @@ class VideoDownloader:
                         matching = [f for f in prog if (f.get('height') or 0) <= target_height]
                         if matching:
                             matching_sorted = sorted(matching, key=lambda x: (x.get('height') or 0, x.get('tbr') or 0), reverse=True)
-                            direct_url = matching_sorted[0]['url']
+                            picked_fmt = matching_sorted[0]
+                            direct_url = picked_fmt['url']
                     if not direct_url:
                         prog_sorted = sorted(prog, key=lambda x: (x.get('height') or 0, x.get('tbr') or 0), reverse=True)
-                        direct_url = prog_sorted[0]['url']
+                        picked_fmt = prog_sorted[0]
+                        direct_url = picked_fmt['url']
                 
                 # If no progressive with separate audio codec metadata was found, pick best progressive video
                 if not direct_url:
@@ -2151,28 +2177,37 @@ class VideoDownloader:
                             matching = [f for f in any_vid if (f.get('height') or 0) <= target_height]
                             if matching:
                                 matching_sorted = sorted(matching, key=lambda x: (x.get('height') or 0, x.get('tbr') or 0), reverse=True)
-                                direct_url = matching_sorted[0]['url']
+                                picked_fmt = matching_sorted[0]
+                                direct_url = picked_fmt['url']
                         if not direct_url:
                             any_sorted = sorted(any_vid, key=lambda x: (x.get('height') or 0, x.get('tbr') or 0), reverse=True)
-                            direct_url = any_sorted[0]['url']
+                            picked_fmt = any_sorted[0]
+                            direct_url = picked_fmt['url']
 
         if not direct_url:
             requested = (info or {}).get('requested_formats') or []
             if requested and requested[0].get('url'):
-                direct_url = requested[0].get('url')
+                picked_fmt = requested[0]
+                direct_url = picked_fmt.get('url')
 
         if not direct_url:
             if is_yt:
                 return self.resolve_youtube_cloud(url, mode=mode, quality_id=quality_id)
             raise RuntimeError("This video format requires local FFmpeg stream merging. Please choose 720p/480p or run VDOWN locally using 'start.bat' on your PC.")
 
+        resolved_ext = (picked_fmt or {}).get('ext') or info.get('ext') or ('m4a' if mode == 'audio' else 'mp4')
+        if mode == 'audio' and resolved_ext in ('mp4', 'webm'):
+            resolved_ext = 'm4a'
+        resolved_size = (picked_fmt or {}).get('filesize') or (picked_fmt or {}).get('filesize_approx') or info.get('filesize') or info.get('filesize_approx') or 0
+        resolved_headers = (picked_fmt or {}).get('http_headers') or info.get('http_headers') or {'Referer': url, 'User-Agent': DEFAULT_USER_AGENT}
+
         return {
             'direct_url': direct_url,
             'referer': url,
             'title': info.get('title'),
-            'ext': info.get('ext') or ('m4a' if mode == 'audio' else 'mp4'),
-            'filesize': info.get('filesize') or info.get('filesize_approx') or 0,
-            'headers': info.get('http_headers') or {'Referer': url, 'User-Agent': DEFAULT_USER_AGENT},
+            'ext': resolved_ext,
+            'filesize': resolved_size,
+            'headers': resolved_headers,
         }
 
     def get_progress(self, download_id: str) -> Optional[Dict[str, Any]]:
