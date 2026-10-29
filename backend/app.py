@@ -118,6 +118,27 @@ async def resolve_stream(req: ResolveRequest):
         return JSONResponse(status_code=400, content={"success": False, "detail": str(e)})
 
     filename = _safe_filename(req.title or info.get("title") or "download", info.get("ext"))
+
+    if info.get("status") == "converting":
+        return {
+            "success": True,
+            "status": "converting",
+            "progress_url": info.get("progress_url"),
+            "progress": info.get("progress", 20.0),
+            "stage": info.get("stage", "Preparing cloud stream..."),
+            "filename": filename,
+        }
+
+    if info.get("use_direct_url"):
+        return {
+            "success": True,
+            "status": "finished",
+            "filename": filename,
+            "filesize": info.get("filesize") or 0,
+            "proxy_url": info["direct_url"],
+            "direct_url": info.get("direct_url")
+        }
+
     headers = {k: v for k, v in (info.get("headers") or {}).items()
                if k.lower() in ("user-agent", "referer", "cookie", "origin", "accept")}
     headers.setdefault("Referer", info.get("referer") or url)
@@ -128,10 +149,39 @@ async def resolve_stream(req: ResolveRequest):
     }
     return {
         "success": True,
+        "status": "finished",
         "filename": filename,
         "filesize": info.get("filesize") or 0,
         "proxy_url": "/api/proxy?" + urllib.parse.urlencode(params),
         "direct_url": info.get("direct_url")
+    }
+
+
+@app.get("/api/resolve-poll")
+async def resolve_poll(progress_url: str, fn: str = "download.mp4"):
+    try:
+        loop = asyncio.get_running_loop()
+        res = await loop.run_in_executor(None, downloader.poll_youtube_cloud, progress_url)
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"success": False, "detail": str(e)})
+
+    if res.get("status") == "error":
+        return JSONResponse(status_code=400, content={"success": False, "detail": res.get("error", "Conversion failed")})
+
+    if res.get("status") == "finished" and res.get("download_url"):
+        return {
+            "success": True,
+            "status": "finished",
+            "filename": fn,
+            "proxy_url": res["download_url"],
+            "direct_url": res["download_url"]
+        }
+
+    return {
+        "success": True,
+        "status": "converting",
+        "progress": res.get("progress", 50.0),
+        "stage": res.get("stage", "Processing cloud stream...")
     }
 
 

@@ -449,18 +449,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  function hasMultipleUrls(text) {
+    if (!text) return false;
+    const urls = text.split(/[\r\n]+/).map(l => l.trim()).filter(l => l.startsWith('http://') || l.startsWith('https://'));
+    return urls.length > 1;
+  }
+
   // Auto-detect pasting multiple URLs into single search input
   urlInput.addEventListener('paste', () => {
     setTimeout(() => {
       const val = urlInput.value;
-      if (val.includes('\n') || val.includes('\r')) {
+      if (hasMultipleUrls(val)) {
         setBatchMode(true);
         if (batchUrlTextarea) {
-          batchUrlTextarea.value = val;
+          batchUrlTextarea.value = val.trim();
           updateBatchUrlCount();
         }
         urlInput.value = '';
         showToast('Multiple URLs detected — switched to Batch Downloader', 'info');
+      } else {
+        urlInput.value = val.trim();
       }
     }, 50);
   });
@@ -474,7 +482,7 @@ document.addEventListener('DOMContentLoaded', () => {
         text = prompt('Paste video or audio URL here:');
       }
       if (text) {
-        if (text.includes('\n') || text.includes('\r')) {
+        if (hasMultipleUrls(text)) {
           setBatchMode(true);
           if (batchUrlTextarea) {
             batchUrlTextarea.value = text.trim();
@@ -493,7 +501,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       const fallback = prompt('Paste video or audio URL here:');
       if (fallback) {
-        if (fallback.includes('\n') || fallback.includes('\r')) {
+        if (hasMultipleUrls(fallback)) {
           setBatchMode(true);
           if (batchUrlTextarea) {
             batchUrlTextarea.value = fallback.trim();
@@ -728,42 +736,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         showToast(`Loaded collection with ${json.data.playlist_count || (json.data.entries ? json.data.entries.length : 1)} stream(s)!`, 'info');
       } else {
-        // We are in Single Stream mode
-        if (json.data && json.data.is_playlist) {
-          // Playlist detected! Switch cleanly to Batch mode!
-          setBatchMode(true);
-          if (batchUrlTextarea) {
-            batchUrlTextarea.value = url;
-            updateBatchUrlCount();
-          }
-          state.currentBatchMedia = json.data;
-          if (resultSection) resultSection.style.display = 'none';
-          renderBatchCollection(json.data);
-          if (batchSection) batchSection.style.display = 'block';
-          batchSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          showToast(`Playlist detected (${json.data.playlist_count} videos) — switched to Batch Downloader!`, 'info');
+        // We are in Single Stream mode — never auto-switch to Batch Downloader
+        if (batchSection) batchSection.style.display = 'none';
+        state.currentMedia = json.data;
+        renderMediaDetails(json.data);
+        renderQualitySelectors(json.data);
+
+        // Auto-switch to audio tab if no video streams exist (e.g. music/audio sites)
+        if ((!json.data.video_qualities || json.data.video_qualities.length === 0) && (json.data.audio_options && json.data.audio_options.length > 0)) {
+          const audioTabBtn = document.getElementById('tab-btn-audio');
+          if (audioTabBtn) audioTabBtn.click();
         } else {
-          // Normal single video
-          if (batchSection) batchSection.style.display = 'none';
-          state.currentMedia = json.data;
-          renderMediaDetails(json.data);
-          renderQualitySelectors(json.data);
-
-          // Auto-switch to audio tab if no video streams exist (e.g. music/audio sites)
-          if ((!json.data.video_qualities || json.data.video_qualities.length === 0) && (json.data.audio_options && json.data.audio_options.length > 0)) {
-            const audioTabBtn = document.getElementById('tab-btn-audio');
-            if (audioTabBtn) audioTabBtn.click();
-          } else {
-            const videoTabBtn = document.getElementById('tab-btn-video');
-            if (videoTabBtn) videoTabBtn.click();
-          }
-
-          if (!state.isBatchMode) {
-            if (resultSection) resultSection.style.display = 'block';
-            resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }
-          showToast('Media inspected & formats ready', 'info');
+          const videoTabBtn = document.getElementById('tab-btn-video');
+          if (videoTabBtn) videoTabBtn.click();
         }
+
+        if (!state.isBatchMode) {
+          if (resultSection) resultSection.style.display = 'block';
+          resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        showToast('Media inspected & formats ready', 'info');
       }
     } catch (err) {
       console.error(err);
@@ -960,11 +952,20 @@ document.addEventListener('DOMContentLoaded', () => {
                   title: item.title
                 })
               });
-              const json = await res.json();
-              if (res.ok && json.success) {
+              let json = await res.json();
+              if (res.ok && json.success && json.status === 'converting' && json.progress_url) {
+                json = await pollCloudConversion(json.progress_url, json.filename, (p, stg) => {
+                  if (batchCurrentPct) batchCurrentPct.textContent = `${Math.round(p)}%`;
+                  if (batchCurrentBar) batchCurrentBar.style.width = `${p}%`;
+                  if (batchStageText && stg) batchStageText.textContent = `Item ${i+1}: ${stg}`;
+                });
+              }
+              if (json && json.success && json.proxy_url) {
+                if (batchCurrentPct) batchCurrentPct.textContent = '100%';
+                if (batchCurrentBar) batchCurrentBar.style.width = '100%';
                 const a = document.createElement('a');
                 a.href = json.proxy_url;
-                a.setAttribute('download', json.filename);
+                a.setAttribute('download', json.filename || 'download');
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
@@ -1347,6 +1348,25 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  async function pollCloudConversion(progressUrl, filename, onProgress) {
+    for (let attempt = 0; attempt < 90; attempt++) {
+      await new Promise(r => setTimeout(r, 1200));
+      const params = new URLSearchParams({ progress_url: progressUrl, fn: filename || 'download.mp4' });
+      const res = await fetch(`/api/resolve-poll?${params.toString()}`);
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.detail || 'Cloud stream conversion failed.');
+      }
+      if (data.status === 'finished' && data.proxy_url) {
+        return data;
+      }
+      if (onProgress) {
+        onProgress(data.progress || 50, data.stage || 'Converting stream in cloud...');
+      }
+    }
+    throw new Error('Cloud conversion timed out. Please try a lower resolution or try again.');
+  }
+
   // ==========================================================================
   // Start Download
   // ==========================================================================
@@ -1374,6 +1394,7 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         startDownloadBtn.disabled = true;
         startDownloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Resolving Stream...';
+        initActiveDownloadUI(payload);
 
         const res = await fetch('/api/resolve', {
           method: 'POST',
@@ -1386,12 +1407,26 @@ document.addEventListener('DOMContentLoaded', () => {
           })
         });
 
-        const json = await res.json();
+        let json = await res.json();
         if (!res.ok || !json.success) {
           throw new Error(json.detail || 'Failed to resolve media stream.');
         }
 
-        initActiveDownloadUI(payload);
+        if (json.status === 'converting' && json.progress_url) {
+          progressStatusBadge.textContent = 'Preparing Stream';
+          progressStatusBadge.className = 'badge-status';
+          const initPct = json.progress || 25;
+          progressMeterFill.style.width = `${initPct}%`;
+          metricPercent.textContent = `${Math.round(initPct)}%`;
+          progressStage.textContent = json.stage || 'Preparing cloud media stream...';
+
+          json = await pollCloudConversion(json.progress_url, json.filename, (pct, stg) => {
+            progressMeterFill.style.width = `${pct}%`;
+            metricPercent.textContent = `${Math.round(pct)}%`;
+            if (stg) progressStage.textContent = stg;
+          });
+        }
+
         progressStatusBadge.textContent = 'Transferred to Browser';
         progressStatusBadge.className = 'badge-status finished';
         state.activeDownloadStatus = 'finished';
@@ -1420,6 +1455,11 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast('Download started! Check your browser downloads.', 'success');
       } catch (err) {
         console.error(err);
+        state.activeDownloadStatus = 'error';
+        updateLiveBadges();
+        progressStatusBadge.textContent = 'Failed';
+        progressStatusBadge.className = 'badge-status error';
+        progressStage.textContent = `Error: ${err.message}`;
         showError('Download Notice', err.message);
         showToast(err.message, 'error');
       } finally {

@@ -162,6 +162,7 @@ class VideoDownloader:
             'no_warnings': True,
             'skip_download': True,
             'extract_flat': False,
+            'noplaylist': True,
             'age_limit': None,
             'geo_bypass': True,
             'nocheckcertificate': True,
@@ -721,30 +722,39 @@ class VideoDownloader:
 
     def extract_info(self, url: str, is_batch: bool = False) -> Dict[str, Any]:
         url = url.strip()
-        # 0. Check for multi-URL input (separated by newlines, commas, or spaces)
-        lines = [line.strip() for line in re.split(r'[\r\n,]+', url) if line.strip()]
+        # 0. Check for multi-URL input (separated by newlines)
+        lines = [line.strip() for line in re.split(r'[\r\n]+', url) if line.strip()]
         urls = [u for u in lines if u.startswith('http://') or u.startswith('https://')]
-        if len(urls) > 1 or (is_batch and len(urls) > 0 and not any(k in url.lower() for k in ['playlist', 'onlyfans-creators', 'channels', 'models', 'categories', 'album'])):
+        if len(urls) > 1 or (is_batch and len(urls) > 0 and not any(k in url.lower() for k in ['playlist', 'onlyfans-creators', 'channels', 'models', 'categories', 'album', 'list='])):
             return self.create_multi_url_batch(urls)
 
-        # Check for creator / gallery / channel / search page patterns
-        parsed_url_pre = urllib.parse.urlparse(url)
-        is_gallery_page = bool(
-            re.search(r'/(?:search|onlyfans-creators|channels|models|categories|users?|tags?|creators?)/', url, re.I) or
-            ('search' in parsed_url_pre.path.lower() or 'search' in parsed_url_pre.query.lower())
-        )
-        if is_gallery_page:
-            try:
-                gallery = self.extract_gallery_fallback(url)
-                if gallery and gallery.get('playlist_count', 0) > 0:
-                    return gallery
-            except Exception:
-                pass
+        is_yt = ("youtube.com" in url or "youtu.be" in url)
+
+        # In Single Stream mode, strip playlist/mix query params (&list=..., &index=...) from single watch links
+        if not is_batch and is_yt:
+            yt_vid_match = re.search(r'(?:v=|youtu\.be/|shorts/|embed/)([a-zA-Z0-9_-]{11})', url)
+            if yt_vid_match:
+                url = f"https://www.youtube.com/watch?v={yt_vid_match.group(1)}"
+
+        # Check for creator / gallery / channel / search page patterns ONLY in Batch mode
+        if is_batch:
+            parsed_url_pre = urllib.parse.urlparse(url)
+            is_gallery_page = bool(
+                re.search(r'/(?:search|onlyfans-creators|channels|models|categories|users?|tags?|creators?)/', url, re.I) or
+                ('search' in parsed_url_pre.path.lower() or 'search' in parsed_url_pre.query.lower())
+            )
+            if is_gallery_page:
+                try:
+                    gallery = self.extract_gallery_fallback(url)
+                    if gallery and gallery.get('playlist_count', 0) > 0:
+                        return gallery
+                except Exception:
+                    pass
 
         ydl_opts = self.get_base_ydl_opts(url)
-        ydl_opts['extract_flat'] = 'in_playlist'
+        ydl_opts['noplaylist'] = not is_batch
+        ydl_opts['extract_flat'] = 'in_playlist' if is_batch else False
         info = None
-        is_yt = ("youtube.com" in url or "youtu.be" in url)
         
         # 1. Try yt-dlp native extraction first
         try:
@@ -756,7 +766,7 @@ class VideoDownloader:
                     retry_opts = dict(ydl_opts)
                     retry_opts['extractor_args'] = {
                         'youtube': {
-                            'player_client': ['mweb', 'web']
+                            'player_client': ['android_vr', 'tv_embedded', 'mweb', 'web']
                         }
                     }
                     with yt_dlp.YoutubeDL(retry_opts) as r_ydl:
@@ -764,19 +774,20 @@ class VideoDownloader:
                 except Exception:
                     pass
 
-            if not info and is_yt:
+            if not info and is_yt and not is_batch:
                 # Trigger YouTube oEmbed fallback on datacenter IP blocks
                 fallback = self.extract_youtube_fallback(url)
                 if fallback:
                     return fallback
 
-            # Try gallery fallback on unsupported / flashvars errors
-            try:
-                gallery = self.extract_gallery_fallback(url)
-                if gallery and gallery.get('playlist_count', 0) > 0:
-                    return gallery
-            except Exception:
-                pass
+            # Try gallery fallback ONLY when in batch mode
+            if is_batch:
+                try:
+                    gallery = self.extract_gallery_fallback(url)
+                    if gallery and gallery.get('playlist_count', 0) > 0:
+                        return gallery
+                except Exception:
+                    pass
 
             # Try general fallback without optional runtimes
             if not info:
@@ -798,14 +809,15 @@ class VideoDownloader:
                         raise ValueError(f"Could not extract video. {str(e2)} (Sniffer: {str(sniffer_err)})")
 
         if not info:
-            gallery = self.extract_gallery_fallback(url)
-            if gallery and gallery.get('playlist_count', 0) > 0:
-                return gallery
+            if is_batch:
+                gallery = self.extract_gallery_fallback(url)
+                if gallery and gallery.get('playlist_count', 0) > 0:
+                    return gallery
             # Sniffer fallback
             return self.sniff_media_fallback(url)
 
-        # Handle playlists (e.g. YouTube playlist, SoundCloud set, etc.)
-        if ('entries' in info and len(list(info['entries'])) > 1) or info.get('_type') == 'playlist':
+        # Handle playlists ONLY when in Batch Mode
+        if is_batch and (('entries' in info and len(list(info['entries'])) > 1) or info.get('_type') == 'playlist'):
             raw_entries = list(info.get('entries', []))
             formatted_entries = []
             for e in raw_entries:
@@ -849,9 +861,11 @@ class VideoDownloader:
                 ]
             }
 
-        # Handle single-entry playlists
+        # Handle single-entry playlists or playlist objects when in Single Stream mode
         if 'entries' in info and info['entries']:
-            info = list(info['entries'])[0]
+            entries_list = [e for e in info['entries'] if e]
+            if entries_list:
+                info = entries_list[0]
 
         title = info.get('title', 'Unknown Title')
         thumbnail = info.get('thumbnail') or (info.get('thumbnails')[-1].get('url') if info.get('thumbnails') else None)
@@ -1718,16 +1732,32 @@ class VideoDownloader:
                     info_dict = f_ydl.extract_info(target_url, download=True)
                     active_ydl = f_ydl
             except Exception:
-                if is_youtube and mode == 'video':
+                if is_youtube:
                     try:
-                        last_resort_opts = dict(ydl_opts)
-                        last_resort_opts['format'] = '18/best'
-                        last_resort_opts.pop('postprocessors', None)
-                        last_resort_opts.pop('merge_output_format', None)
-                        with yt_dlp.YoutubeDL(last_resort_opts) as lr_ydl:
-                            info_dict = lr_ydl.extract_info(target_url, download=True)
-                            active_ydl = lr_ydl
+                        if mode == 'video':
+                            last_resort_opts = dict(ydl_opts)
+                            last_resort_opts['format'] = '18/best'
+                            last_resort_opts.pop('postprocessors', None)
+                            last_resort_opts.pop('merge_output_format', None)
+                            with yt_dlp.YoutubeDL(last_resort_opts) as lr_ydl:
+                                info_dict = lr_ydl.extract_info(target_url, download=True)
+                                active_ydl = lr_ydl
+                        else:
+                            raise e
                     except Exception:
+                        task_info['stage'] = "Resolving via cloud YouTube stream..."
+                        cloud_res = self.resolve_youtube_cloud(target_url, mode=mode, quality_id=quality_id, max_wait=90.0)
+                        if cloud_res.get('direct_url'):
+                            self._download_direct_stream(
+                                task_info,
+                                cloud_res['direct_url'],
+                                cloud_res.get('referer') or 'https://y2down.cc/',
+                                title or cloud_res.get('title') or '',
+                                mode,
+                                container,
+                                custom_filename
+                            )
+                            return
                         raise e
                 else:
                     raise e
@@ -1781,6 +1811,144 @@ class VideoDownloader:
             task_info['status'] = 'finished'
             task_info['stage'] = "Ready! Download completed successfully."
 
+    def resolve_youtube_cloud(
+        self,
+        url: str,
+        mode: str = 'video',
+        quality_id: str = '720',
+        max_wait: float = 6.5
+    ) -> Dict[str, Any]:
+        """
+        Cloud-compatible YouTube stream resolver using distributed transcode/stream workers
+        so YouTube downloads work on Vercel / cloud datacenter IPs where YouTube blocks yt-dlp.
+        """
+        import time
+
+        quality_str = str(quality_id or '720').lower()
+        if mode == 'audio':
+            if 'm4a' in quality_str or 'aac' in quality_str:
+                fmt = 'm4a'
+                ext = 'm4a'
+            elif 'wav' in quality_str:
+                fmt = 'wav'
+                ext = 'wav'
+            elif 'flac' in quality_str:
+                fmt = 'flac'
+                ext = 'flac'
+            else:
+                fmt = 'mp3'
+                ext = 'mp3'
+        else:
+            ext = 'mp4'
+            m = re.search(r'(\d{3,4})', quality_str)
+            height = int(m.group(1)) if m else 720
+            if height >= 2160:
+                fmt = '4k'
+            elif height >= 1440:
+                fmt = '1440'
+            elif height >= 1080:
+                fmt = '1080'
+            elif height >= 720:
+                fmt = '720'
+            elif height >= 480:
+                fmt = '480'
+            else:
+                fmt = '360'
+
+        init_url = (
+            "https://p.savenow.to/ajax/download.php?copyright=0"
+            f"&format={urllib.parse.quote(fmt)}"
+            f"&url={urllib.parse.quote(url)}"
+            "&api=dfcb6d76f2f6a9894gjkege8a4ab232222"
+        )
+        req_headers = {
+            'User-Agent': DEFAULT_USER_AGENT,
+            'Referer': 'https://y2down.cc/',
+            'Accept': 'application/json, text/plain, */*'
+        }
+        req = urllib.request.Request(init_url, headers=req_headers)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode('utf-8', errors='ignore'))
+
+        if not data.get('success') and not data.get('id'):
+            raise RuntimeError(data.get('message') or "Cloud YouTube resolver could not initialize stream.")
+
+        task_id = data.get('id')
+        info_meta = data.get('info') or {}
+        title = info_meta.get('title') or data.get('title') or None
+        prog_url = data.get('progress_url') or f"https://p.savenow.to/api/progress?id={urllib.parse.quote(str(task_id))}"
+
+        deadline = time.time() + max_wait
+        last_pct = 15.0
+        last_stage = "Preparing cloud YouTube stream..."
+
+        while time.time() < deadline:
+            time.sleep(1.1)
+            poll_res = self.poll_youtube_cloud(prog_url)
+            if poll_res.get('status') == 'finished' and poll_res.get('download_url'):
+                return {
+                    'direct_url': poll_res['download_url'],
+                    'use_direct_url': True,
+                    'referer': 'https://y2down.cc/',
+                    'title': title,
+                    'ext': ext,
+                    'filesize': 0,
+                    'headers': {'User-Agent': DEFAULT_USER_AGENT}
+                }
+            if poll_res.get('status') == 'error':
+                raise RuntimeError(poll_res.get('error') or "Cloud YouTube conversion failed.")
+            last_pct = poll_res.get('progress', last_pct)
+            last_stage = poll_res.get('stage', last_stage)
+
+        return {
+            'status': 'converting',
+            'progress_url': prog_url,
+            'progress': last_pct,
+            'stage': last_stage,
+            'title': title,
+            'ext': ext,
+        }
+
+    def poll_youtube_cloud(self, progress_url: str) -> Dict[str, Any]:
+        """Polls an active cloud YouTube conversion task and returns its current status."""
+        parsed = urllib.parse.urlparse(progress_url)
+        if parsed.scheme not in ('http', 'https') or not parsed.hostname or not parsed.hostname.endswith('savenow.to'):
+            raise ValueError("Invalid progress URL")
+
+        req_headers = {
+            'User-Agent': DEFAULT_USER_AGENT,
+            'Referer': 'https://y2down.cc/',
+            'Accept': 'application/json, text/plain, */*'
+        }
+        req = urllib.request.Request(progress_url, headers=req_headers)
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            pdata = json.loads(resp.read().decode('utf-8', errors='ignore'))
+
+        dl_url = pdata.get('download_url')
+        raw_prog = pdata.get('progress') or 0
+        text = pdata.get('text') or 'Processing stream...'
+
+        if dl_url:
+            return {
+                'status': 'finished',
+                'progress': 100.0,
+                'stage': 'Ready! Starting browser download...',
+                'download_url': dl_url
+            }
+
+        if pdata.get('error') or (pdata.get('success') == 0 and raw_prog >= 1000 and not dl_url):
+            return {
+                'status': 'error',
+                'error': pdata.get('text') or 'Stream conversion failed for this video.'
+            }
+
+        pct = min(max(round(float(raw_prog) / 10.0, 1), 10.0), 95.0)
+        return {
+            'status': 'converting',
+            'progress': pct,
+            'stage': f"Cloud Stream: {text} ({pct:.0f}%)"
+        }
+
     def resolve_direct_stream(self, url: str, mode: str = 'video', quality_id: str = '720') -> Dict[str, Any]:
         """
         Resolve a single-file HTTP media URL (no download, no FFmpeg) so the server can
@@ -1790,6 +1958,7 @@ class VideoDownloader:
         quality_id = str(quality_id or '')
         parsed = urllib.parse.urlparse(url)
         referer = f"{parsed.scheme}://{parsed.netloc}/" if parsed.netloc else url
+        is_yt = any(k in url.lower() for k in ['youtube.com', 'youtu.be'])
 
         # 1) Direct media stream URL pasted in quality_id or url
         if quality_id.startswith('http://') or quality_id.startswith('https://'):
@@ -1836,6 +2005,14 @@ class VideoDownloader:
                     'headers': {'Referer': url, 'User-Agent': DEFAULT_USER_AGENT}
                 }
 
+        # 2.5) On Vercel/cloud deployments (or high-res/audio YouTube where progressive streams aren't available),
+        # use the cloud YouTube resolver directly to avoid datacenter IP blocks and merged-stream limits.
+        if is_yt and (os.environ.get("VERCEL") or mode == 'audio' or (target_height and target_height >= 720)):
+            try:
+                return self.resolve_youtube_cloud(url, mode=mode, quality_id=quality_id)
+            except Exception:
+                pass
+
         # 3) yt-dlp: extract info and resolve progressive format
         opts = self.get_base_ydl_opts(url)
         info = None
@@ -1843,9 +2020,9 @@ class VideoDownloader:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=False)
         except Exception as e:
+            if is_yt:
+                return self.resolve_youtube_cloud(url, mode=mode, quality_id=quality_id)
             msg = str(e)
-            if 'sign in to confirm' in msg.lower() or 'bot' in msg.lower():
-                msg = ("YouTube blocks cloud server datacenter IPs (Vercel). Run VDOWN locally with start.bat on your PC for unrestricted YouTube downloads.")
             raise RuntimeError(msg.replace('ERROR: ', '', 1))
 
         if info and info.get('entries'):
@@ -1891,6 +2068,8 @@ class VideoDownloader:
                 direct_url = requested[0].get('url')
 
         if not direct_url:
+            if is_yt:
+                return self.resolve_youtube_cloud(url, mode=mode, quality_id=quality_id)
             raise RuntimeError("This video format requires local FFmpeg stream merging. Please choose 720p/480p or run VDOWN locally using 'start.bat' on your PC.")
 
         return {
