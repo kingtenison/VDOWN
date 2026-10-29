@@ -1811,18 +1811,91 @@ class VideoDownloader:
             task_info['status'] = 'finished'
             task_info['stage'] = "Ready! Download completed successfully."
 
+    def _cloud_http_json(
+        self,
+        url: str,
+        headers: Dict[str, str],
+        method: str = 'GET',
+        json_body: Optional[Dict[str, Any]] = None,
+        timeout: int = 8
+    ) -> Dict[str, Any]:
+        """Performs HTTP request with Chrome TLS impersonation (curl_cffi) if available, falling back to urllib."""
+        try:
+            from curl_cffi import requests as cffi_requests
+            if method.upper() == 'POST':
+                r = cffi_requests.post(url, headers=headers, json=json_body, impersonate="chrome", timeout=timeout)
+            else:
+                r = cffi_requests.get(url, headers=headers, impersonate="chrome", timeout=timeout)
+            if r.status_code >= 400:
+                raise RuntimeError(f"HTTP {r.status_code}: {r.text[:160]}")
+            return r.json()
+        except ImportError:
+            pass
+
+        body_bytes = None
+        req_headers = dict(headers)
+        if json_body is not None:
+            body_bytes = json.dumps(json_body).encode('utf-8')
+            req_headers['Content-Type'] = 'application/json'
+        req = urllib.request.Request(url, data=body_bytes, headers=req_headers, method=method.upper())
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read().decode('utf-8', errors='ignore'))
+        except urllib.error.HTTPError as e:
+            err_body = ""
+            try:
+                err_body = e.read().decode('utf-8', errors='ignore')[:160]
+            except Exception:
+                pass
+            raise RuntimeError(f"HTTP {e.code}: {err_body or e.reason}")
+
+    def _mint_pow_token(self, base_host: str, headers: Dict[str, str]) -> Optional[str]:
+        import hashlib
+        try:
+            ch = self._cloud_http_json(f"{base_host}/api/pow/challenge", headers=headers, timeout=5)
+            salt = str(ch['salt'])
+            diff = int(ch.get('difficulty') or 3)
+            prefix = '0' * diff
+            nonce = 0
+            while nonce < 500000:
+                if hashlib.sha256(f"{salt}:{nonce}".encode('utf-8')).hexdigest().startswith(prefix):
+                    break
+                nonce += 1
+            vres = self._cloud_http_json(
+                f"{base_host}/api/pow/verify",
+                headers=headers,
+                method='POST',
+                json_body={
+                    'salt': ch['salt'],
+                    'difficulty': ch['difficulty'],
+                    'expires_at': ch['expires_at'],
+                    'signature': ch['signature'],
+                    'nonce': str(nonce)
+                },
+                timeout=5
+            )
+            if vres.get('success') and vres.get('token'):
+                return str(vres['token'])
+        except Exception:
+            pass
+        return None
+
     def resolve_youtube_cloud(
         self,
         url: str,
         mode: str = 'video',
         quality_id: str = '720',
-        max_wait: float = 6.5
+        max_wait: float = 6.0
     ) -> Dict[str, Any]:
         """
         Cloud-compatible YouTube stream resolver using distributed transcode/stream workers
-        so YouTube downloads work on Vercel / cloud datacenter IPs where YouTube blocks yt-dlp.
+        with Proof-of-Work token and multi-domain failover (p.savenow.to / p.lbserver.xyz).
         """
         import time
+
+        yt_vid_match = re.search(r'(?:v=|youtu\.be/|shorts/|embed/)([a-zA-Z0-9_-]{11})', url)
+        if yt_vid_match:
+            url = f"https://www.youtube.com/watch?v={yt_vid_match.group(1)}"
 
         quality_str = str(quality_id or '720').lower()
         if mode == 'audio':
@@ -1855,28 +1928,48 @@ class VideoDownloader:
             else:
                 fmt = '360'
 
-        init_url = (
-            "https://p.savenow.to/ajax/download.php?copyright=0"
-            f"&format={urllib.parse.quote(fmt)}"
-            f"&url={urllib.parse.quote(url)}"
-            "&api=dfcb6d76f2f6a9894gjkege8a4ab232222"
-        )
         req_headers = {
             'User-Agent': DEFAULT_USER_AGENT,
-            'Referer': 'https://y2down.cc/',
+            'Origin': 'https://loader.to',
+            'Referer': 'https://loader.to/api/button/',
             'Accept': 'application/json, text/plain, */*'
         }
-        req = urllib.request.Request(init_url, headers=req_headers)
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read().decode('utf-8', errors='ignore'))
 
-        if not data.get('success') and not data.get('id'):
-            raise RuntimeError(data.get('message') or "Cloud YouTube resolver could not initialize stream.")
+        data = None
+        active_host = "https://p.savenow.to"
+        pow_token = None
+        last_err = None
+
+        for host in ("https://p.savenow.to", "https://p.lbserver.xyz"):
+            try:
+                active_host = host
+                pow_token = self._mint_pow_token(host, req_headers)
+                params = {
+                    'button': '1',
+                    'format': fmt,
+                    'iframe_source': 'direct-iframe',
+                    'url': url,
+                }
+                if pow_token:
+                    params['pow_token'] = pow_token
+                init_url = f"{host}/api/v2/download?{urllib.parse.urlencode(params)}"
+                data = self._cloud_http_json(init_url, headers=req_headers, timeout=7)
+                if data and (data.get('id') or data.get('success')):
+                    break
+            except Exception as e:
+                last_err = e
+                continue
+
+        if not data or (not data.get('id') and not data.get('success')):
+            raise RuntimeError(str(last_err or "Cloud YouTube resolver could not initialize stream."))
 
         task_id = data.get('id')
         info_meta = data.get('info') or {}
         title = info_meta.get('title') or data.get('title') or None
-        prog_url = data.get('progress_url') or f"https://p.savenow.to/api/progress?id={urllib.parse.quote(str(task_id))}"
+        prog_url = data.get('progress_url') or f"{active_host}/api/progress?id={urllib.parse.quote(str(task_id))}"
+        if pow_token and 'pow_token=' not in prog_url:
+            sep = '&' if '?' in prog_url else '?'
+            prog_url = f"{prog_url}{sep}pow_token={urllib.parse.quote(pow_token)}"
 
         deadline = time.time() + max_wait
         last_pct = 15.0
@@ -1889,7 +1982,7 @@ class VideoDownloader:
                 return {
                     'direct_url': poll_res['download_url'],
                     'use_direct_url': True,
-                    'referer': 'https://y2down.cc/',
+                    'referer': 'https://loader.to/',
                     'title': title,
                     'ext': ext,
                     'filesize': 0,
@@ -1912,17 +2005,18 @@ class VideoDownloader:
     def poll_youtube_cloud(self, progress_url: str) -> Dict[str, Any]:
         """Polls an active cloud YouTube conversion task and returns its current status."""
         parsed = urllib.parse.urlparse(progress_url)
-        if parsed.scheme not in ('http', 'https') or not parsed.hostname or not parsed.hostname.endswith('savenow.to'):
+        if parsed.scheme not in ('http', 'https') or not parsed.hostname or not (
+            parsed.hostname.endswith('savenow.to') or parsed.hostname.endswith('lbserver.xyz')
+        ):
             raise ValueError("Invalid progress URL")
 
         req_headers = {
             'User-Agent': DEFAULT_USER_AGENT,
-            'Referer': 'https://y2down.cc/',
+            'Origin': 'https://loader.to',
+            'Referer': 'https://loader.to/api/button/',
             'Accept': 'application/json, text/plain, */*'
         }
-        req = urllib.request.Request(progress_url, headers=req_headers)
-        with urllib.request.urlopen(req, timeout=8) as resp:
-            pdata = json.loads(resp.read().decode('utf-8', errors='ignore'))
+        pdata = self._cloud_http_json(progress_url, headers=req_headers, timeout=7)
 
         dl_url = pdata.get('download_url')
         raw_prog = pdata.get('progress') or 0
